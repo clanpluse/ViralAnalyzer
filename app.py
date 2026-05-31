@@ -261,17 +261,32 @@ def analyze():
     video_file.save(video_path)
 
     try:
-        duration = get_video_duration(video_path)
+        # Get duration safely
+        duration = 0
+        try:
+            duration = get_video_duration(video_path)
+        except Exception as e:
+            print(f"Duration error: {e}")
 
-        frame_path = extract_frame(video_path)
+        # Extract frame safely
         frame_base64 = None
-        if frame_path and os.path.exists(frame_path):
-            with open(frame_path, 'rb') as f:
-                frame_base64 = base64.b64encode(f.read()).decode('utf-8')
-            os.unlink(frame_path)
+        try:
+            frame_path = extract_frame(video_path)
+            if frame_path and os.path.exists(frame_path):
+                with open(frame_path, 'rb') as f:
+                    frame_base64 = base64.b64encode(f.read()).decode('utf-8')
+                os.unlink(frame_path)
+        except Exception as e:
+            print(f"Frame error: {e}")
 
-        transcript = transcribe_audio(video_path)
+        # Transcribe audio safely
+        transcript = None
+        try:
+            transcript = transcribe_audio(video_path)
+        except Exception as e:
+            print(f"Transcribe error: {e}")
 
+        # Analyze with Claude (always works)
         result = analyze_with_claude(duration, transcript, frame_base64, niche)
         result['transcript'] = transcript or "🔇 بدون كلام"
         result['duration'] = int(duration)
