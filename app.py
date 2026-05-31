@@ -114,19 +114,23 @@ def transcribe_audio(video_path):
     audio_path = video_path + "_audio.mp3"
     try:
         ffmpeg = get_ffmpeg_path()
-        subprocess.run([
+        # Extract only first 60 seconds to save time
+        result = subprocess.run([
             ffmpeg, "-y", "-i", video_path,
             "-vn", "-acodec", "mp3", "-q:a", "5",
+            "-t", "60",
             audio_path
-        ], capture_output=True, timeout=60)
+        ], capture_output=True, timeout=30)
 
-        if not os.path.exists(audio_path):
+        if not os.path.exists(audio_path) or os.path.getsize(audio_path) == 0:
             return None
 
         import whisper
         model = whisper.load_model("tiny")
-        result = model.transcribe(audio_path, fp16=False)
-        return result.get("text", "").strip() or None
+        result = model.transcribe(audio_path, fp16=False, language="ar")
+        text = result.get("text", "").strip()
+        print(f"Transcript: {text[:50]}...")
+        return text or None
     except Exception as e:
         print(f"Transcribe error: {e}")
         return None
