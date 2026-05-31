@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import subprocess
 import requests
@@ -51,7 +52,7 @@ def get_trending_videos(hashtag, count=15):
     """Get trending videos for a hashtag using yt-dlp."""
     try:
         result = subprocess.run([
-            "yt-dlp",
+            sys.executable, "-m", "yt_dlp",
             "--flat-playlist",
             "--dump-json",
             "--playlist-end", str(count),

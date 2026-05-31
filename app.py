@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import base64
 import tempfile
@@ -55,12 +56,22 @@ def load_trend_data(niche):
     return _trends_cache.get(niche) or _trends_cache.get("عام")
 
 
+def get_ffmpeg_path():
+    """Get ffmpeg binary path."""
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return "ffmpeg"
+
+
 def extract_frame(video_path, time_sec=1.5):
     """Extract a frame from video at given time."""
     frame_path = video_path + "_frame.jpg"
     try:
+        ffmpeg = get_ffmpeg_path()
         subprocess.run([
-            "ffmpeg", "-y", "-i", video_path,
+            ffmpeg, "-y", "-i", video_path,
             "-ss", str(time_sec), "-vframes", "1",
             "-q:v", "2", frame_path
         ], capture_output=True, timeout=30)
@@ -72,23 +83,35 @@ def extract_frame(video_path, time_sec=1.5):
 def get_video_duration(video_path):
     """Get video duration in seconds."""
     try:
+        import imageio_ffmpeg
+        ffprobe = get_ffmpeg_path().replace("ffmpeg", "ffprobe")
         result = subprocess.run([
-            "ffprobe", "-v", "quiet",
+            ffprobe, "-v", "quiet",
             "-print_format", "json",
             "-show_format", video_path
         ], capture_output=True, text=True, timeout=15)
         data = json.loads(result.stdout)
         return float(data['format']['duration'])
     except Exception:
-        return 0
+        # Fallback: use cv2 if available
+        try:
+            import cv2
+            cap = cv2.VideoCapture(video_path)
+            fps = cap.get(cv2.CAP_PROP_FPS)
+            frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+            cap.release()
+            return frames / fps if fps > 0 else 0
+        except Exception:
+            return 0
 
 
 def transcribe_audio(video_path):
     """Extract and transcribe audio from video."""
     audio_path = video_path + "_audio.mp3"
     try:
+        ffmpeg = get_ffmpeg_path()
         subprocess.run([
-            "ffmpeg", "-y", "-i", video_path,
+            ffmpeg, "-y", "-i", video_path,
             "-vn", "-acodec", "mp3", "-q:a", "5",
             audio_path
         ], capture_output=True, timeout=60)

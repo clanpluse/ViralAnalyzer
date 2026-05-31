@@ -3,3 +3,5 @@ anthropic
 openai-whisper
 requests
 schedule
+imageio-ffmpeg
+opencv-python-headless
