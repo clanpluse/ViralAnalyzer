@@ -209,11 +209,19 @@ def analyze_with_claude(duration, transcript, frame_base64, niche):
             }
         })
 
-    message = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=1500,
-        messages=[{"role": "user", "content": content}]
-    )
+    for attempt in range(3):
+        try:
+            message = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=1500,
+                messages=[{"role": "user", "content": content}]
+            )
+            break
+        except Exception as e:
+            print(f"Claude attempt {attempt+1} failed: {e}")
+            if attempt == 2:
+                raise
+            time.sleep(3)
 
     response_text = message.content[0].text.strip()
     if "```" in response_text:
