@@ -4,6 +4,7 @@ plugins {
 }
 
 android {
+    namespace "com.viral.analyzer"
     compileSdk 34
     defaultConfig {
         applicationId "com.viral.analyzer"
