@@ -14,6 +14,14 @@ from datetime import datetime
 
 app = Flask(__name__)
 client = Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
+
+# Add ffmpeg to PATH automatically
+try:
+    import static_ffmpeg
+    static_ffmpeg.add_paths()
+    print("✅ ffmpeg added to PATH via static-ffmpeg")
+except Exception as e:
+    print(f"⚠️ static-ffmpeg not available: {e}")
 GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
 GITHUB_REPO = "clanpluse/ViralAnalyzer"
 UPLOAD_FOLDER = tempfile.gettempdir()
@@ -58,11 +66,7 @@ def load_trend_data(niche):
 
 def get_ffmpeg_path():
     """Get ffmpeg binary path."""
-    try:
-        import imageio_ffmpeg
-        return imageio_ffmpeg.get_ffmpeg_exe()
-    except Exception:
-        return "ffmpeg"
+    return "ffmpeg"
 
 
 def extract_frame(video_path, time_sec=1.5):
