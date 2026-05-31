@@ -286,8 +286,17 @@ def analyze():
         except Exception as e:
             print(f"Transcribe error: {e}")
 
+        print(f"Analyzing: niche={niche}, duration={duration}, has_frame={frame_base64 is not None}, has_transcript={transcript is not None}")
+
         # Analyze with Claude (always works)
-        result = analyze_with_claude(duration, transcript, frame_base64, niche)
+        try:
+            result = analyze_with_claude(duration, transcript, frame_base64, niche)
+        except Exception as e:
+            print(f"Claude analysis error: {e}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({"error": f"خطأ في التحليل: {str(e)}"}), 500
+
         result['transcript'] = transcript or "🔇 بدون كلام"
         result['duration'] = int(duration)
 
