@@ -191,7 +191,17 @@ class MainActivity : AppCompatActivity() {
         tvHook.text = json.optString("hook_rating", "-")
         tvDuration.text = "${json.optInt("duration")}ث • ${json.optString("duration_rating")}"
         tvBestTime.text = json.optString("best_time", "-")
-        tvVerdict.text = json.optString("verdict", "-")
+
+        // Add trend match info to verdict
+        val verdict = json.optString("verdict", "-")
+        val trendMatch = json.optInt("trend_match", 0)
+        val trendUpdated = json.optString("trend_updated", "")
+        val videosAnalyzed = json.optInt("videos_analyzed", 0)
+        tvVerdict.text = verdict
+        if (trendMatch > 0) {
+            tvStatus.text = "✅ تحليل مكتمل • توافق مع الترند: $trendMatch% • بيانات من $videosAnalyzed فيديو ($trendUpdated)"
+        }
+
         tvCaption.text = json.optString("caption", "-")
         tvHashtags.text = json.optString("hashtags", "-")
         tvTranscript.text = json.optString("transcript", "-")

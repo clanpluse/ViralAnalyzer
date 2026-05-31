@@ -3,13 +3,56 @@ import json
 import base64
 import tempfile
 import subprocess
+import threading
+import schedule
+import time
+import requests
 from flask import Flask, request, jsonify
 from anthropic import Anthropic
+from datetime import datetime
 
 app = Flask(__name__)
 client = Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
-
+GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
+GITHUB_REPO = "clanpluse/ViralAnalyzer"
 UPLOAD_FOLDER = tempfile.gettempdir()
+
+# Cache for trend data
+_trends_cache = {}
+_trends_loaded_at = None
+
+
+def github_get_file(path):
+    url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}"
+    headers = {"Authorization": f"token {GITHUB_TOKEN}"}
+    try:
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            content = base64.b64decode(data['content']).decode('utf-8')
+            return content
+    except Exception:
+        pass
+    return None
+
+
+def load_trend_data(niche):
+    """Load latest trend data for a niche from GitHub."""
+    global _trends_cache, _trends_loaded_at
+
+    # Refresh cache every hour
+    if not _trends_cache or not _trends_loaded_at or \
+       (datetime.now() - _trends_loaded_at).seconds > 3600:
+        content = github_get_file('data/trends.json')
+        if content:
+            try:
+                _trends_cache = json.loads(content)
+                _trends_loaded_at = datetime.now()
+                print("Trend data loaded from GitHub")
+            except Exception:
+                pass
+
+    return _trends_cache.get(niche) or _trends_cache.get("عام")
 
 
 def extract_frame(video_path, time_sec=1.5):
@@ -24,11 +67,6 @@ def extract_frame(video_path, time_sec=1.5):
         return frame_path if os.path.exists(frame_path) else None
     except Exception:
         return None
-
-
-def extract_hook_frame(video_path):
-    """Extract frame from first 1.5 seconds (hook)."""
-    return extract_frame(video_path, 1.5)
 
 
 def get_video_duration(video_path):
@@ -67,45 +105,69 @@ def transcribe_audio(video_path):
         return None
     finally:
         if os.path.exists(audio_path):
-            os.unlink(audio_path)
+            try:
+                os.unlink(audio_path)
+            except Exception:
+                pass
 
 
 def analyze_with_claude(duration, transcript, frame_base64, niche):
-    """Send everything to Claude for analysis."""
+    """Send everything to Claude for analysis, enriched with real trend data."""
 
     duration_str = f"{int(duration)} ثانية" if duration > 0 else "غير معروف"
     transcript_str = transcript if transcript else "لا يوجد كلام مسموع"
 
+    # Load real trend data
+    trend_data = load_trend_data(niche)
+    trend_context = ""
+    if trend_data:
+        trend_context = f"""
+بيانات الترند الحقيقية لمجال "{niche}" (محدّثة {trend_data.get('last_updated', '')[:10]}):
+- المدة المثالية للمجال: {trend_data.get('optimal_duration_seconds', 'غير محدد')} ثانية
+- أنماط الـ Hook الناجحة: {', '.join(trend_data.get('hook_patterns', []))}
+- نصائح المحتوى: {', '.join(trend_data.get('content_tips', []))}
+- صيغة الكابشن الناجح: {trend_data.get('caption_formula', '')}
+- أفضل وقت النشر: {trend_data.get('best_posting_times', '')}
+- محفزات التفاعل: {', '.join(trend_data.get('engagement_triggers', []))}
+- معادلة الانتشار: {trend_data.get('virality_formula', '')}
+- تجنب: {', '.join(trend_data.get('avoid', []))}
+- هاشتاقات رائجة فعلاً: {' '.join(['#'+h for h in trend_data.get('trending_hashtags', [])])}
+"""
+    else:
+        trend_context = "ملاحظة: لم تُحلَّل بيانات الترند بعد، استخدم معرفتك العامة."
+
     content = [
         {
             "type": "text",
-            "text": f"""أنت خبير في خوارزميات TikTok والمحتوى التسويقي.
+            "text": f"""أنت خبير متخصص في خوارزميات TikTok والمحتوى التسويقي.
 
-حلل هذا الفيديو التسويقي وأعطني تقريراً شاملاً بالعربية.
+حلل هذا الفيديو التسويقي بدقة وأعطني تقريراً شاملاً بالعربية.
 
 معلومات الفيديو:
 - المجال: {niche}
 - المدة: {duration_str}
 - النص المنطوق: {transcript_str}
 
-قيّم الفيديو وأعطني النتائج بصيغة JSON فقط بهذا الشكل:
+{trend_context}
+
+بناءً على بيانات الترند الحقيقية أعلاه وتحليلك للفيديو، أعطني النتائج بصيغة JSON فقط:
 {{
-  "score": (رقم من 0 إلى 100 يمثل احتمالية الوصول للترند),
+  "score": (رقم من 0 إلى 100 بناءً على مقارنة الفيديو ببيانات الترند الحقيقية),
   "hook_rating": (تقييم الثواني الأولى: "ممتاز" أو "جيد" أو "يحتاج تحسين"),
-  "duration_rating": (تقييم المدة: "مثالية" أو "طويلة جداً" أو "قصيرة جداً"),
-  "strengths": [(قائمة نقاط القوة بالعربية, 3 نقاط كحد أقصى)],
-  "improvements": [(قائمة التحسينات المطلوبة بالعربية, 3 نقاط)],
-  "caption": (كابشن جاهز للنشر بالعربية مناسب للمجال),
-  "hashtags": (هاشتاقات مناسبة مفصولة بمسافة, 10 هاشتاقات),
-  "best_time": (أفضل وقت للنشر مثل: "8 مساءً - 10 مساءً"),
-  "verdict": (حكم نهائي قصير: هل ينصح بنشره الآن أم يحتاج تعديل)
+  "duration_rating": (مقارنة مع المدة المثالية للمجال),
+  "strengths": [(3 نقاط قوة محددة بناءً على بيانات الترند)],
+  "improvements": [(3 تحسينات محددة مبنية على ما ينجح فعلاً في الترند)],
+  "caption": (كابشن مكتوب بصيغة الكابشن الناجح في هذا المجال),
+  "hashtags": (هاشتاقات من القائمة الرائجة الحقيقية + هاشتاقات إضافية مناسبة),
+  "best_time": (أفضل وقت للنشر بناءً على البيانات),
+  "verdict": (حكم نهائي: هل يناسب الترند الحالي أم يحتاج تعديل ولماذا),
+  "trend_match": (نسبة توافق الفيديو مع الترند الحالي كنسبة مئوية)
 }}
 
 أعطني JSON فقط بدون أي نص إضافي."""
         }
     ]
 
-    # Add frame image if available
     if frame_base64:
         content.insert(0, {
             "type": "image",
@@ -123,12 +185,39 @@ def analyze_with_claude(duration, transcript, frame_base64, niche):
     )
 
     response_text = message.content[0].text.strip()
-    # Extract JSON if wrapped in markdown
     if "```" in response_text:
         response_text = response_text.split("```")[1]
         if response_text.startswith("json"):
             response_text = response_text[4:]
     return json.loads(response_text)
+
+
+def run_trend_monitor():
+    """Run trend monitor in background."""
+    try:
+        from trend_monitor import run_trend_analysis
+        print("Running scheduled trend analysis...")
+        run_trend_analysis()
+    except Exception as e:
+        print(f"Trend monitor error: {e}")
+
+
+def start_scheduler():
+    """Start background scheduler for daily trend updates."""
+    schedule.every().day.at("03:00").do(run_trend_monitor)
+    schedule.every().day.at("15:00").do(run_trend_monitor)
+
+    def run():
+        # Run once at startup after 2 minutes
+        time.sleep(120)
+        run_trend_monitor()
+        while True:
+            schedule.run_pending()
+            time.sleep(60)
+
+    thread = threading.Thread(target=run, daemon=True)
+    thread.start()
+    print("Trend monitor scheduler started (runs at 3AM and 3PM daily)")
 
 
 @app.route('/analyze', methods=['POST'])
@@ -137,36 +226,34 @@ def analyze():
         return jsonify({"error": "لم يتم إرسال فيديو"}), 400
 
     video_file = request.files['video']
-    niche = request.form.get('niche', 'تسويق عام')
+    niche = request.form.get('niche', 'عام')
 
-    # Save video temporarily
-    tmp = tempfile.NamedTemporaryFile(
-        suffix='.mp4', delete=False,
-        dir=UPLOAD_FOLDER
-    )
+    tmp = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False, dir=UPLOAD_FOLDER)
     video_path = tmp.name
     tmp.close()
     video_file.save(video_path)
 
     try:
-        # 1. Get duration
         duration = get_video_duration(video_path)
 
-        # 2. Extract hook frame
-        frame_path = extract_hook_frame(video_path)
+        frame_path = extract_frame(video_path)
         frame_base64 = None
         if frame_path and os.path.exists(frame_path):
             with open(frame_path, 'rb') as f:
                 frame_base64 = base64.b64encode(f.read()).decode('utf-8')
             os.unlink(frame_path)
 
-        # 3. Transcribe audio
         transcript = transcribe_audio(video_path)
 
-        # 4. Analyze with Claude
         result = analyze_with_claude(duration, transcript, frame_base64, niche)
         result['transcript'] = transcript or "🔇 بدون كلام"
         result['duration'] = int(duration)
+
+        # Add trend data freshness info
+        trend_data = load_trend_data(niche)
+        if trend_data:
+            result['trend_updated'] = trend_data.get('last_updated', '')[:10]
+            result['videos_analyzed'] = trend_data.get('videos_analyzed', 0)
 
         return jsonify(result)
 
@@ -174,14 +261,32 @@ def analyze():
         return jsonify({"error": str(e)}), 500
     finally:
         if os.path.exists(video_path):
-            os.unlink(video_path)
+            try:
+                os.unlink(video_path)
+            except Exception:
+                pass
+
+
+@app.route('/trends', methods=['GET'])
+def get_trends():
+    """Return current trend data."""
+    content = github_get_file('data/trends.json')
+    if content:
+        return jsonify(json.loads(content))
+    return jsonify({"message": "لم تُحلَّل بيانات الترند بعد"}), 404
 
 
 @app.route('/health', methods=['GET'])
 def health():
-    return jsonify({"status": "ok"})
+    trend_data = load_trend_data("عام")
+    return jsonify({
+        "status": "ok",
+        "trends_loaded": bool(trend_data),
+        "trends_updated": trend_data.get('last_updated', 'N/A')[:10] if trend_data else 'N/A'
+    })
 
 
 if __name__ == '__main__':
+    start_scheduler()
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
