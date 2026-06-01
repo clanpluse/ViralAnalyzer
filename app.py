@@ -630,6 +630,27 @@ def enhance():
                 pass
 
 
+@app.route('/diag-env', methods=['GET'])
+def diag_env():
+    """One-shot environment diagnostics for ffmpeg/font setup."""
+    info = {}
+    info["PATH"] = os.environ.get("PATH", "")[:1000]
+    info["nix_exists"] = os.path.isdir("/nix")
+    info["nix_ffmpeg_glob"] = _glob.glob("/nix/store/*ffmpeg*/bin/ffmpeg")[:10]
+    info["usr_bin_ffmpeg"] = os.path.isfile("/usr/bin/ffmpeg")
+    info["which_ffmpeg"] = _shutil.which("ffmpeg")
+    info["resolved_ffmpeg"] = _FFMPEG_BIN
+    # Check if the resolved ffmpeg supports fontconfig/freetype
+    try:
+        ver = subprocess.run([_FFMPEG_BIN, "-version"], capture_output=True, text=True, timeout=20)
+        line = next((l for l in ver.stdout.split("\n") if "configuration" in l), "")
+        info["fontconfig_in_build"] = "fontconfig" in line
+        info["freetype_in_build"] = "freetype" in line or "libfreetype" in line
+    except Exception as e:
+        info["ffmpeg_version_error"] = str(e)
+    return jsonify(info)
+
+
 @app.route('/trend-report', methods=['GET'])
 def trend_report():
     """Get latest trend report."""
@@ -656,7 +677,7 @@ def health():
     trend_data = load_trend_data("عام")
     return jsonify({
         "status": "ok",
-        "version": "sysffmpeg-2",
+        "version": "sysffmpeg-3",
         "ffmpeg": _FFMPEG_BIN,
         "trends_loaded": bool(trend_data),
         "trends_updated": trend_data.get('last_updated', 'N/A')[:10] if trend_data else 'N/A'
