@@ -24,9 +24,21 @@ jobs:
           gradle-version: '8.4'
 
       - name: Build APK
-        run: gradle assembleDebug
+        run: |
+          set -o pipefail
+          gradle assembleDebug --stacktrace 2>&1 | tee build.log
         env:
           SERVER_URL: ${{ secrets.SERVER_URL }}
+
+      - name: Publish build log on failure
+        if: failure()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: buildlog
+          name: build log
+          files: build.log
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
