@@ -238,6 +238,13 @@ class MainActivity : AppCompatActivity() {
                 val response = client.newCall(request).execute()
                 if (!response.isSuccessful) throw Exception("خطأ: ${response.code}")
 
+                // Get enhancement info from headers
+                val hookText = response.header("X-Hook-Text", "")
+                val hookReason = response.header("X-Hook-Reason", "")
+                val engageText = response.header("X-Engage-Text", "")
+                val ctaText = response.header("X-CTA-Text", "")
+                val algoBoost = response.header("X-Algorithm-Boost", "")
+
                 // Save enhanced video to gallery
                 val videoBytes = response.body?.bytes() ?: throw Exception("لا يوجد فيديو")
                 saveVideoToGallery(videoBytes)
@@ -246,9 +253,36 @@ class MainActivity : AppCompatActivity() {
                 withContext(Dispatchers.Main) {
                     progressBar.visibility = View.GONE
                     btnEnhance.isEnabled = true
-                    tvStatus.text = "✅ تم حفظ الفيديو المحسّن في المعرض!"
-                    Toast.makeText(this@MainActivity,
-                        "✅ الفيديو المحسّن تم حفظه في المعرض", Toast.LENGTH_LONG).show()
+                    tvStatus.text = "✅ الفيديو المحسّن تم حفظه في المعرض!"
+
+                    // Show enhancement report
+                    val report = buildString {
+                        appendLine("🎬 التحسينات المُطبَّقة على الفيديو:")
+                        appendLine("━━━━━━━━━━━━━━━━━")
+                        if (!hookText.isNullOrEmpty()) {
+                            appendLine("\n🎣 Hook (أول 3 ثواني):")
+                            appendLine("  \"$hookText\"")
+                            if (!hookReason.isNullOrEmpty()) appendLine("  💡 $hookReason")
+                        }
+                        if (!engageText.isNullOrEmpty()) {
+                            appendLine("\n💬 نص التفاعل (المنتصف):")
+                            appendLine("  \"$engageText\"")
+                        }
+                        if (!ctaText.isNullOrEmpty()) {
+                            appendLine("\n📢 نداء للعمل (النهاية):")
+                            appendLine("  \"$ctaText\"")
+                        }
+                        if (!algoBoost.isNullOrEmpty()) {
+                            appendLine("\n🚀 تأثير على الخوارزمية:")
+                            appendLine("  $algoBoost")
+                        }
+                    }
+
+                    android.app.AlertDialog.Builder(this@MainActivity)
+                        .setTitle("✅ الفيديو المحسّن جاهز!")
+                        .setMessage(report)
+                        .setPositiveButton("ممتاز!") { _, _ -> }
+                        .show()
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {

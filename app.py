@@ -369,39 +369,63 @@ def download_arabic_font():
         return None
 
 
-def enhance_video(video_path, hook_text, caption_text, output_path):
-    """Apply text overlays and visual enhancements using ffmpeg."""
+def clean_text(text, max_len=55):
+    """Clean text for ffmpeg drawtext filter."""
+    if not text:
+        return ""
+    text = text[:max_len]
+    for ch in ["'", '"', "\\", ":", "\n", "\r"]:
+        text = text.replace(ch, " ")
+    return text.strip()
+
+
+def enhance_video(video_path, enhancements, output_path, duration=30):
+    """Apply algorithm-based text overlays and visual enhancements."""
     ffmpeg = get_ffmpeg_path()
     font_path = download_arabic_font()
+    font_param = f":fontfile={font_path}" if font_path and os.path.exists(font_path) else ""
+
+    # Calculate timing based on video duration
+    hook_end = min(3.0, duration * 0.15)
+    engage_start = duration * 0.4
+    engage_end = duration * 0.7
+    cta_start = max(duration - 4, duration * 0.8)
 
     filters = []
 
-    # Visual enhancement: brightness + contrast + saturation
-    filters.append("eq=brightness=0.04:contrast=1.08:saturation=1.1")
+    # 1. Visual enhancement for mobile screens
+    filters.append("eq=brightness=0.05:contrast=1.1:saturation=1.15")
 
-    # Hook text (first 3.5 seconds) - top of screen
-    if hook_text:
-        hook_clean = hook_text[:60].replace("'", "").replace(":", " ").replace("\\", "")
-        font_param = f":fontfile={font_path}" if font_path else ""
+    # 2. Hook text (first seconds) - stops the scroll
+    hook = clean_text(enhancements.get('hook_text', ''))
+    if hook:
         filters.append(
-            f"drawtext=text='{hook_clean}'"
-            f":fontsize=42:fontcolor=white"
-            f":x=(w-text_w)/2:y=h*0.08"
-            f":enable='between(t,0,3.5)'"
+            f"drawtext=text='{hook}'"
+            f":fontsize=44:fontcolor=white:x=(w-text_w)/2:y=h*0.07"
+            f":enable='between(t,0,{hook_end})'"
+            f":box=1:boxcolor=black@0.65:boxborderw=10"
+            f"{font_param}"
+        )
+
+    # 3. Engagement trigger text (middle) - boosts comments/saves
+    engage = clean_text(enhancements.get('engagement_text', ''))
+    if engage:
+        filters.append(
+            f"drawtext=text='{engage}'"
+            f":fontsize=36:fontcolor=yellow:x=(w-text_w)/2:y=h*0.78"
+            f":enable='between(t,{engage_start},{engage_end})'"
             f":box=1:boxcolor=black@0.6:boxborderw=8"
             f"{font_param}"
         )
 
-    # Caption text (after 3.5 seconds) - bottom of screen
-    if caption_text:
-        caption_clean = caption_text[:50].replace("'", "").replace(":", " ").replace("\\", "")
-        font_param = f":fontfile={font_path}" if font_path else ""
+    # 4. CTA text (end) - boosts shares
+    cta = clean_text(enhancements.get('cta_text', ''))
+    if cta:
         filters.append(
-            f"drawtext=text='{caption_clean}'"
-            f":fontsize=32:fontcolor=white"
-            f":x=(w-text_w)/2:y=h*0.82"
-            f":enable='gt(t,3.5)'"
-            f":box=1:boxcolor=black@0.55:boxborderw=6"
+            f"drawtext=text='{cta}'"
+            f":fontsize=38:fontcolor=white:x=(w-text_w)/2:y=h*0.85"
+            f":enable='gt(t,{cta_start})'"
+            f":box=1:boxcolor=red@0.7:boxborderw=8"
             f"{font_param}"
         )
 
@@ -415,33 +439,53 @@ def enhance_video(video_path, hook_text, caption_text, output_path):
         output_path
     ], capture_output=True, timeout=120)
 
+    print(f"FFmpeg return code: {result.returncode}")
+    if result.returncode != 0:
+        print(f"FFmpeg error: {result.stderr.decode()[:300]}")
+
     return os.path.exists(output_path) and os.path.getsize(output_path) > 0
 
 
-def generate_enhancement_texts(niche, title, transcript, score):
-    """Generate hook text and caption for video enhancement."""
+def generate_algorithm_enhancements(niche, title, transcript, duration):
+    """Generate algorithm-based video enhancements using Claude's knowledge."""
     trend_data = load_trend_data(niche)
-    hook_examples = ""
+    trend_context = ""
     if trend_data:
-        examples = trend_data.get('hook_text_examples', [])
-        if examples:
-            hook_examples = f"أمثلة Hook ناجحة في هذا المجال: {', '.join(examples[:3])}"
+        trend_context = f"""
+بيانات الترند الحقيقية لمجال "{niche}":
+- المدة المثالية: {trend_data.get('optimal_duration_seconds', 30)} ثانية
+- أنماط Hook ناجحة: {', '.join(trend_data.get('hook_patterns', [])[:3])}
+- محفزات التفاعل: {', '.join(trend_data.get('engagement_triggers', [])[:3])}
+"""
 
-    prompt = f"""أنت خبير في TikTok ومحتوى الترند.
+    prompt = f"""أنت خبير متخصص في خوارزميات TikTok 2024-2025.
 
-أنشئ نصوصاً لتحسين فيديو في مجال "{niche}":
-- عنوان الفيديو: {title}
-- الكلام في الفيديو: {transcript or 'بدون كلام'}
-{hook_examples}
+خوارزمية TikTok تعتمد على:
+1. معدل الإكمال (Completion Rate) - أهم عامل
+2. معدل الإعادة (Rewatch Rate)
+3. التعليقات والحفظ أقوى من اللايك
+4. المشاركة (Share) يضاعف الوصول 10x
+5. أول 1.5 ثانية تحدد إذا يستمر المشاهد
 
-أعطني JSON فقط:
+معلومات الفيديو:
+- المجال: {niche}
+- العنوان: {title or 'غير محدد'}
+- الكلام: {transcript or 'بدون كلام'}
+- المدة: {duration} ثانية
+{trend_context}
+
+بناءً على هذه الخوارزميات، أعطني نصوص التحسين بصيغة JSON فقط:
 {{
-  "hook_text": "جملة افتتاحية قصيرة جداً (أقل من 8 كلمات) تجذب الانتباه فوراً",
-  "caption_overlay": "نص قصير (أقل من 6 كلمات) يظهر في منتصف الفيديو",
-  "why_hook": "سبب اختيار هذا الـ Hook"
+  "hook_text": "جملة تُوقف الإصبع في أول 1.5 ثانية (5-7 كلمات، تبدأ بسؤال أو رقم أو تحدٍّ)",
+  "hook_reason": "لماذا هذا الـ Hook يرفع معدل الإكمال",
+  "engagement_text": "نص يظهر في المنتصف يحفز التعليق أو الحفظ (4-6 كلمات)",
+  "engagement_reason": "لماذا يرفع التفاعل",
+  "cta_text": "نداء للعمل في النهاية يزيد المشاركة (3-5 كلمات)",
+  "visual_tip": "نصيحة بصرية مهمة لهذا الفيديو",
+  "algorithm_score_boost": "كيف ستساعد هذه التحسينات الخوارزمية تحديداً"
 }}"""
 
-    response = call_claude(prompt, max_tokens=400)
+    response = call_claude(prompt, max_tokens=600)
     if not response:
         return None
 
@@ -478,27 +522,43 @@ def enhance():
     output_path = video_path + "_enhanced.mp4"
 
     try:
-        # Generate texts if not provided
-        if not hook_text:
-            print("Generating enhancement texts...")
-            texts = generate_enhancement_texts(niche, title, transcript, 0)
-            if texts:
-                hook_text = texts.get('hook_text', '')
-                caption_text = texts.get('caption_overlay', '')
-                print(f"Hook: {hook_text}")
-                print(f"Caption: {caption_text}")
+        # Get video duration
+        duration = get_video_duration(video_path)
 
-        # Apply enhancements
-        print("Enhancing video...")
-        success = enhance_video(video_path, hook_text, caption_text, output_path)
+        # Generate algorithm-based enhancements
+        print("Generating algorithm-based enhancements...")
+        enhancements = generate_algorithm_enhancements(niche, title, transcript, int(duration))
+
+        if not enhancements:
+            enhancements = {
+                "hook_text": "شاهد حتى النهاية!",
+                "engagement_text": "احفظ هذا الفيديو",
+                "cta_text": "شاركه مع صديق"
+            }
+
+        print(f"Hook: {enhancements.get('hook_text')}")
+        print(f"Engagement: {enhancements.get('engagement_text')}")
+        print(f"CTA: {enhancements.get('cta_text')}")
+
+        # Apply enhancements to video
+        print("Applying enhancements to video...")
+        success = enhance_video(video_path, enhancements, output_path, duration)
 
         if success:
-            return send_file(
+            # Return video + enhancement report as headers
+            response = send_file(
                 output_path,
                 mimetype='video/mp4',
                 as_attachment=True,
                 download_name='enhanced_video.mp4'
             )
+            # Add enhancement info to response headers
+            response.headers['X-Hook-Text'] = enhancements.get('hook_text', '')
+            response.headers['X-Hook-Reason'] = enhancements.get('hook_reason', '')
+            response.headers['X-Engage-Text'] = enhancements.get('engagement_text', '')
+            response.headers['X-CTA-Text'] = enhancements.get('cta_text', '')
+            response.headers['X-Algorithm-Boost'] = enhancements.get('algorithm_score_boost', '')
+            return response
         else:
             return jsonify({"error": "فشل تحسين الفيديو"}), 500
 
