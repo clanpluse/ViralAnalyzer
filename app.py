@@ -534,11 +534,11 @@ def enhance_video(video_path, enhancements, output_path, duration=30):
     overlay_ok = False
     if filters:
         # Cap resolution to keep encode fast + low-memory on Railway (avoids 502/OOM).
-        # Scale longest side to <=1280, preserve aspect, keep even dimensions.
-        scale = "scale='if(gt(iw,ih),min(1280,iw),-2)':'if(gt(iw,ih),-2,min(1280,ih))'"
+        # Scale longest side to <=720 (TikTok-friendly), preserve aspect, even dims.
+        scale = "scale='if(gt(iw,ih),min(720,iw),-2)':'if(gt(iw,ih),-2,min(720,ih))'"
         vf = scale + "," + ",".join(filters)
         cmd = [ffmpeg, "-y", "-i", video_path, "-vf", vf,
-               "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
+               "-c:v", "libx264", "-preset", "ultrafast", "-crf", "30",
                "-threads", "2", "-max_muxing_queue_size", "1024",
                "-c:a", "copy", output_path]
         print(f"Applying text overlays...")
@@ -767,7 +767,7 @@ def health():
     trend_data = load_trend_data("عام")
     return jsonify({
         "status": "ok",
-        "version": "mem-1",
+        "version": "mem-2",
         "ffmpeg": _FFMPEG_BIN,
         "trends_loaded": bool(trend_data),
         "trends_updated": trend_data.get('last_updated', 'N/A')[:10] if trend_data else 'N/A'
