@@ -56,16 +56,36 @@ def call_claude(messages_content, max_tokens=1500):
 # ships fontconfig + fonts so the drawtext filter works. static-ffmpeg is a static
 # ffbuild binary WITHOUT fontconfig, so drawtext fails on it — use it only as fallback.
 import shutil as _shutil
+import glob as _glob
 
-_FFMPEG_BIN = _shutil.which("ffmpeg")
+
+def _find_system_ffmpeg():
+    """Find a system ffmpeg that is NOT the fontconfig-less static_ffmpeg build."""
+    # 1. Scan PATH for any ffmpeg not under static_ffmpeg
+    for d in os.environ.get("PATH", "").split(os.pathsep):
+        cand = os.path.join(d, "ffmpeg")
+        if os.path.isfile(cand) and "static_ffmpeg" not in cand:
+            return cand
+    # 2. Common system locations
+    for cand in ("/usr/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/bin/ffmpeg"):
+        if os.path.isfile(cand):
+            return cand
+    # 3. Nix store (nixpacks installs ffmpeg-full here)
+    for cand in _glob.glob("/nix/store/*ffmpeg*/bin/ffmpeg"):
+        if os.path.isfile(cand):
+            return cand
+    return None
+
+
+_FFMPEG_BIN = _find_system_ffmpeg()
 if _FFMPEG_BIN:
-    print(f"Using system ffmpeg: {_FFMPEG_BIN}")
+    print(f"Using system ffmpeg (fontconfig OK): {_FFMPEG_BIN}")
 else:
     try:
         import static_ffmpeg
         static_ffmpeg.add_paths()
         _FFMPEG_BIN = _shutil.which("ffmpeg") or "ffmpeg"
-        print(f"Using static-ffmpeg (no fontconfig): {_FFMPEG_BIN}")
+        print(f"Falling back to static-ffmpeg (no fontconfig): {_FFMPEG_BIN}")
         subprocess.run([_FFMPEG_BIN, "-version"], capture_output=True, timeout=120)
     except Exception as e:
         _FFMPEG_BIN = "ffmpeg"
@@ -135,11 +155,18 @@ def extract_frame(video_path, time_sec=1.5):
         return None
 
 
+def get_ffprobe_path():
+    """Derive ffprobe path from the ffmpeg binary's directory."""
+    ffmpeg = get_ffmpeg_path()
+    d = os.path.dirname(ffmpeg)
+    cand = os.path.join(d, "ffprobe") if d else "ffprobe"
+    return cand if (not d or os.path.isfile(cand)) else "ffprobe"
+
+
 def get_video_duration(video_path):
     """Get video duration in seconds."""
     try:
-        import imageio_ffmpeg
-        ffprobe = get_ffmpeg_path().replace("ffmpeg", "ffprobe")
+        ffprobe = get_ffprobe_path()
         result = subprocess.run([
             ffprobe, "-v", "quiet",
             "-print_format", "json",
@@ -629,7 +656,7 @@ def health():
     trend_data = load_trend_data("عام")
     return jsonify({
         "status": "ok",
-        "version": "sysffmpeg-1",
+        "version": "sysffmpeg-2",
         "ffmpeg": _FFMPEG_BIN,
         "trends_loaded": bool(trend_data),
         "trends_updated": trend_data.get('last_updated', 'N/A')[:10] if trend_data else 'N/A'
