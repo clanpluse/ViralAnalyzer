@@ -414,17 +414,19 @@ def enhance_video(video_path, enhancements, output_path, duration=30):
 
     filter_str = ",".join(vf_filters)
 
-    result = subprocess.run([
-        ffmpeg, "-y", "-i", video_path,
-        "-vf", filter_str,
-        "-c:a", "copy",
-        "-preset", "fast",
-        output_path
-    ], capture_output=True, timeout=120)
+    cmd = [ffmpeg, "-y", "-i", video_path, "-vf", filter_str, output_path]
+    print(f"FFmpeg cmd: {' '.join(cmd[-4:])}")
+
+    result = subprocess.run(cmd, capture_output=True, timeout=120)
 
     print(f"FFmpeg return code: {result.returncode}")
     if result.returncode != 0:
-        print(f"FFmpeg error: {result.stderr.decode()[:300]}")
+        err = result.stderr.decode('utf-8', errors='replace')
+        # Find actual error line
+        for line in err.split('\n'):
+            if 'Error' in line or 'Invalid' in line or 'No such' in line or 'Unknown' in line:
+                print(f"FFmpeg error detail: {line}")
+        print(f"FFmpeg stderr tail: {err[-500:]}")
 
     return os.path.exists(output_path) and os.path.getsize(output_path) > 0
 
