@@ -52,15 +52,24 @@ def call_claude(messages_content, max_tokens=1500):
             time.sleep(3)
     return None
 
-# Add ffmpeg to PATH automatically and warm it up (downloads binary on first call)
-try:
-    import static_ffmpeg
-    static_ffmpeg.add_paths()
-    print("ffmpeg added to PATH via static-ffmpeg")
-    _warmup = subprocess.run(["ffmpeg", "-version"], capture_output=True, timeout=120)
-    print("ffmpeg warmed up OK" if _warmup.returncode == 0 else "ffmpeg warmup failed")
-except Exception as e:
-    print(f"static-ffmpeg not available: {e}")
+# Resolve ffmpeg binary. Prefer the SYSTEM ffmpeg (nixpacks: ffmpeg-full) because it
+# ships fontconfig + fonts so the drawtext filter works. static-ffmpeg is a static
+# ffbuild binary WITHOUT fontconfig, so drawtext fails on it — use it only as fallback.
+import shutil as _shutil
+
+_FFMPEG_BIN = _shutil.which("ffmpeg")
+if _FFMPEG_BIN:
+    print(f"Using system ffmpeg: {_FFMPEG_BIN}")
+else:
+    try:
+        import static_ffmpeg
+        static_ffmpeg.add_paths()
+        _FFMPEG_BIN = _shutil.which("ffmpeg") or "ffmpeg"
+        print(f"Using static-ffmpeg (no fontconfig): {_FFMPEG_BIN}")
+        subprocess.run([_FFMPEG_BIN, "-version"], capture_output=True, timeout=120)
+    except Exception as e:
+        _FFMPEG_BIN = "ffmpeg"
+        print(f"static-ffmpeg not available: {e}")
 GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
 GITHUB_REPO = "clanpluse/ViralAnalyzer"
 UPLOAD_FOLDER = tempfile.gettempdir()
@@ -107,8 +116,8 @@ def load_trend_data(niche):
 
 
 def get_ffmpeg_path():
-    """Get ffmpeg binary path."""
-    return "ffmpeg"
+    """Get ffmpeg binary path (system ffmpeg preferred for fontconfig support)."""
+    return _FFMPEG_BIN
 
 
 def extract_frame(video_path, time_sec=1.5):
@@ -620,7 +629,8 @@ def health():
     trend_data = load_trend_data("عام")
     return jsonify({
         "status": "ok",
-        "version": "diag-2",
+        "version": "sysffmpeg-1",
+        "ffmpeg": _FFMPEG_BIN,
         "trends_loaded": bool(trend_data),
         "trends_updated": trend_data.get('last_updated', 'N/A')[:10] if trend_data else 'N/A'
     })
