@@ -90,6 +90,40 @@ else:
     except Exception as e:
         _FFMPEG_BIN = "ffmpeg"
         print(f"static-ffmpeg not available: {e}")
+ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
+
+
+def _setup_fontconfig():
+    """The static-ffmpeg build has fontconfig compiled in but ships no config file,
+    which makes drawtext fail ('Cannot load default config file' -> font 'Sans' not
+    found). Write a minimal fonts.conf pointing at our bundled font and export
+    FONTCONFIG_FILE so fontconfig initializes successfully."""
+    try:
+        cache_dir = os.path.join(tempfile.gettempdir(), "fontcache")
+        os.makedirs(cache_dir, exist_ok=True)
+        conf_path = os.path.join(tempfile.gettempdir(), "fonts.conf")
+        conf = f"""<?xml version="1.0"?>
+<!DOCTYPE fontconfig SYSTEM "fonts.dtd">
+<fontconfig>
+  <dir>{ASSETS_DIR}</dir>
+  <cachedir>{cache_dir}</cachedir>
+  <match target="pattern">
+    <test name="family"><string>sans-serif</string></test>
+    <edit name="family" mode="assign" binding="strong"><string>Cairo</string></edit>
+  </match>
+</fontconfig>
+"""
+        with open(conf_path, "w", encoding="utf-8") as f:
+            f.write(conf)
+        os.environ["FONTCONFIG_FILE"] = conf_path
+        os.environ["FONTCONFIG_PATH"] = os.path.dirname(conf_path)
+        print(f"fontconfig configured: {conf_path}")
+    except Exception as e:
+        print(f"fontconfig setup failed: {e}")
+
+
+_setup_fontconfig()
+
 GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
 GITHUB_REPO = "clanpluse/ViralAnalyzer"
 UPLOAD_FOLDER = tempfile.gettempdir()
@@ -677,7 +711,7 @@ def health():
     trend_data = load_trend_data("عام")
     return jsonify({
         "status": "ok",
-        "version": "sysffmpeg-3",
+        "version": "fontconfig-1",
         "ffmpeg": _FFMPEG_BIN,
         "trends_loaded": bool(trend_data),
         "trends_updated": trend_data.get('last_updated', 'N/A')[:10] if trend_data else 'N/A'
