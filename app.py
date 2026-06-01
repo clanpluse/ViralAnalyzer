@@ -8,7 +8,7 @@ import threading
 import schedule
 import time
 import requests
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 from anthropic import Anthropic
 from datetime import datetime
 
@@ -348,6 +348,183 @@ def analyze():
                 os.unlink(video_path)
             except Exception:
                 pass
+
+
+def download_arabic_font():
+    """Download Arabic font for video text overlays."""
+    font_path = "/tmp/arabic_font.ttf"
+    if os.path.exists(font_path):
+        return font_path
+    try:
+        r = requests.get(
+            "https://github.com/google/fonts/raw/main/ofl/cairo/Cairo-Bold.ttf",
+            timeout=30
+        )
+        with open(font_path, 'wb') as f:
+            f.write(r.content)
+        print("✅ Arabic font downloaded")
+        return font_path
+    except Exception as e:
+        print(f"Font download failed: {e}")
+        return None
+
+
+def enhance_video(video_path, hook_text, caption_text, output_path):
+    """Apply text overlays and visual enhancements using ffmpeg."""
+    ffmpeg = get_ffmpeg_path()
+    font_path = download_arabic_font()
+
+    filters = []
+
+    # Visual enhancement: brightness + contrast + saturation
+    filters.append("eq=brightness=0.04:contrast=1.08:saturation=1.1")
+
+    # Hook text (first 3.5 seconds) - top of screen
+    if hook_text:
+        hook_clean = hook_text[:60].replace("'", "").replace(":", " ").replace("\\", "")
+        font_param = f":fontfile={font_path}" if font_path else ""
+        filters.append(
+            f"drawtext=text='{hook_clean}'"
+            f":fontsize=42:fontcolor=white"
+            f":x=(w-text_w)/2:y=h*0.08"
+            f":enable='between(t,0,3.5)'"
+            f":box=1:boxcolor=black@0.6:boxborderw=8"
+            f"{font_param}"
+        )
+
+    # Caption text (after 3.5 seconds) - bottom of screen
+    if caption_text:
+        caption_clean = caption_text[:50].replace("'", "").replace(":", " ").replace("\\", "")
+        font_param = f":fontfile={font_path}" if font_path else ""
+        filters.append(
+            f"drawtext=text='{caption_clean}'"
+            f":fontsize=32:fontcolor=white"
+            f":x=(w-text_w)/2:y=h*0.82"
+            f":enable='gt(t,3.5)'"
+            f":box=1:boxcolor=black@0.55:boxborderw=6"
+            f"{font_param}"
+        )
+
+    filter_str = ",".join(filters)
+
+    result = subprocess.run([
+        ffmpeg, "-y", "-i", video_path,
+        "-vf", filter_str,
+        "-c:a", "copy",
+        "-preset", "fast",
+        output_path
+    ], capture_output=True, timeout=120)
+
+    return os.path.exists(output_path) and os.path.getsize(output_path) > 0
+
+
+def generate_enhancement_texts(niche, title, transcript, score):
+    """Generate hook text and caption for video enhancement."""
+    trend_data = load_trend_data(niche)
+    hook_examples = ""
+    if trend_data:
+        examples = trend_data.get('hook_text_examples', [])
+        if examples:
+            hook_examples = f"أمثلة Hook ناجحة في هذا المجال: {', '.join(examples[:3])}"
+
+    prompt = f"""أنت خبير في TikTok ومحتوى الترند.
+
+أنشئ نصوصاً لتحسين فيديو في مجال "{niche}":
+- عنوان الفيديو: {title}
+- الكلام في الفيديو: {transcript or 'بدون كلام'}
+{hook_examples}
+
+أعطني JSON فقط:
+{{
+  "hook_text": "جملة افتتاحية قصيرة جداً (أقل من 8 كلمات) تجذب الانتباه فوراً",
+  "caption_overlay": "نص قصير (أقل من 6 كلمات) يظهر في منتصف الفيديو",
+  "why_hook": "سبب اختيار هذا الـ Hook"
+}}"""
+
+    response = call_claude(prompt, max_tokens=400)
+    if not response:
+        return None
+
+    try:
+        text = response.strip()
+        if "```" in text:
+            text = text.split("```")[1]
+            if text.startswith("json"):
+                text = text[4:]
+        return json.loads(text)
+    except Exception:
+        return None
+
+
+@app.route('/enhance', methods=['POST'])
+def enhance():
+    """Enhance video with text overlays based on trend analysis."""
+    if 'video' not in request.files:
+        return jsonify({"error": "لم يتم إرسال فيديو"}), 400
+
+    video_file = request.files['video']
+    niche = request.form.get('niche', 'عام')
+    hook_text = request.form.get('hook_text', '')
+    caption_text = request.form.get('caption_text', '')
+    title = request.form.get('title', '')
+    transcript = request.form.get('transcript', '')
+
+    # Save input video
+    tmp_in = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False, dir=UPLOAD_FOLDER)
+    video_path = tmp_in.name
+    tmp_in.close()
+    video_file.save(video_path)
+
+    output_path = video_path + "_enhanced.mp4"
+
+    try:
+        # Generate texts if not provided
+        if not hook_text:
+            print("Generating enhancement texts...")
+            texts = generate_enhancement_texts(niche, title, transcript, 0)
+            if texts:
+                hook_text = texts.get('hook_text', '')
+                caption_text = texts.get('caption_overlay', '')
+                print(f"Hook: {hook_text}")
+                print(f"Caption: {caption_text}")
+
+        # Apply enhancements
+        print("Enhancing video...")
+        success = enhance_video(video_path, hook_text, caption_text, output_path)
+
+        if success:
+            return send_file(
+                output_path,
+                mimetype='video/mp4',
+                as_attachment=True,
+                download_name='enhanced_video.mp4'
+            )
+        else:
+            return jsonify({"error": "فشل تحسين الفيديو"}), 500
+
+    except Exception as e:
+        print(f"Enhancement error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        if os.path.exists(video_path):
+            try:
+                os.unlink(video_path)
+            except Exception:
+                pass
+
+
+@app.route('/trend-report', methods=['GET'])
+def trend_report():
+    """Get latest trend report."""
+    content, _ = github_get_file('data/trend_report.json')
+    if content:
+        return jsonify(json.loads(content))
+    return jsonify({
+        "message": "لم يتم إنشاء تقرير بعد",
+        "next_run": "سيتم تحليل الترند تلقائياً"
+    }), 404
 
 
 @app.route('/trends', methods=['GET'])
