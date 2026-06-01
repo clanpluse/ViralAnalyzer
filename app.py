@@ -378,9 +378,11 @@ def download_arabic_font():
 
 
 def clean_text(text, max_len=55):
-    """Clean text for ffmpeg drawtext filter."""
+    """Clean text for ffmpeg drawtext filter and HTTP headers (ASCII only)."""
     if not text:
         return ""
+    # Keep only printable ASCII (32-126), replace everything else
+    text = "".join(c if 32 <= ord(c) <= 126 else " " for c in text)
     text = text[:max_len]
     for ch in ["'", '"', "\\", ":", "\n", "\r"]:
         text = text.replace(ch, " ")
@@ -553,11 +555,11 @@ def enhance():
                 download_name='enhanced_video.mp4'
             )
             # Add enhancement info to response headers
-            response.headers['X-Hook-Text'] = enhancements.get('hook_text', '')
-            response.headers['X-Hook-Reason'] = enhancements.get('hook_reason', '')
-            response.headers['X-Engage-Text'] = enhancements.get('engagement_text', '')
-            response.headers['X-CTA-Text'] = enhancements.get('cta_text', '')
-            response.headers['X-Algorithm-Boost'] = enhancements.get('algorithm_score_boost', '')
+            response.headers['X-Hook-Text'] = clean_text(enhancements.get('hook_text', ''), 80)
+            response.headers['X-Hook-Reason'] = clean_text(enhancements.get('hook_reason', ''), 80)
+            response.headers['X-Engage-Text'] = clean_text(enhancements.get('engagement_text', ''), 80)
+            response.headers['X-CTA-Text'] = clean_text(enhancements.get('cta_text', ''), 80)
+            response.headers['X-Algorithm-Boost'] = clean_text(enhancements.get('algorithm_score_boost', ''), 80)
             return response
         else:
             return jsonify({"error": "فشل تحسين الفيديو"}), 500
