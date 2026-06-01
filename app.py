@@ -389,30 +389,8 @@ def enhance_video(video_path, enhancements, output_path, duration=30):
     engage_end = duration * 0.7
     cta_start = max(duration - 4, duration * 0.8)
 
-    # Build filters list for filtergraph
-    vf_filters = []
-
-    # 1. Visual enhancement
-    vf_filters.append("eq=brightness=0.05:contrast=1.1:saturation=1.15")
-
-    # 2. Try adding text overlays (no enable expression to avoid syntax issues)
-    hook = clean_text(enhancements.get('hook_text', ''))
-    if hook:
-        vf_filters.append(
-            f"drawtext=text={hook}:fontsize=40:fontcolor=white"
-            f":x=(w-text_w)/2:y=50"
-            f":box=1:boxcolor=black@0.6:boxborderw=8"
-        )
-
-    engage = clean_text(enhancements.get('engagement_text', ''))
-    if engage:
-        vf_filters.append(
-            f"drawtext=text={engage}:fontsize=32:fontcolor=yellow"
-            f":x=(w-text_w)/2:y=(h-120)"
-            f":box=1:boxcolor=black@0.5:boxborderw=6"
-        )
-
-    filter_str = ",".join(vf_filters)
+    # Simple visual enhancement only (no text to avoid filter issues)
+    filter_str = "eq=brightness=0.05:contrast=1.1:saturation=1.15"
 
     cmd = [ffmpeg, "-y", "-i", video_path, "-vf", filter_str, output_path]
     print(f"FFmpeg cmd: {' '.join(cmd[-4:])}")
