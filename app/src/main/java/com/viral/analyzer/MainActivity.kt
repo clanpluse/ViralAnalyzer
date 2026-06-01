@@ -5,17 +5,37 @@ import android.app.Activity
 import android.content.ContentValues
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
 import android.provider.MediaStore
 import android.provider.Settings
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.AbsoluteSizeSpan
+import android.text.style.BackgroundColorSpan
+import android.text.style.ForegroundColorSpan
 import android.view.View
 import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.media3.common.MediaItem
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.effect.OverlayEffect
+import androidx.media3.effect.OverlaySettings
+import androidx.media3.effect.StaticOverlaySettings
+import androidx.media3.effect.TextOverlay
+import androidx.media3.effect.TextureOverlay
+import androidx.media3.transformer.Composition
+import androidx.media3.transformer.EditedMediaItem
+import androidx.media3.transformer.Effects
+import androidx.media3.transformer.ExportException
+import androidx.media3.transformer.ExportResult
+import androidx.media3.transformer.Transformer
+import com.google.common.collect.ImmutableList
 import kotlinx.coroutines.*
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
@@ -24,6 +44,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 
 class MainActivity : AppCompatActivity() {
 
@@ -212,104 +234,69 @@ class MainActivity : AppCompatActivity() {
 
         btnEnhance.isEnabled = false
         progressBar.visibility = View.VISIBLE
-        tvStatus.text = "🎬 جارٍ تحسين الفيديو..."
+        tvStatus.text = "🎬 جارٍ توليد النصوص..."
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
-                val tmpFile = File(cacheDir, "enhance_video.mp4")
-                contentResolver.openInputStream(uri)?.use { input ->
-                    FileOutputStream(tmpFile).use { output -> input.copyTo(output) }
-                }
-
+                // 1) Ask the server only for the smart text (fast, lightweight JSON)
+                val durationSec = result.optInt("duration", 0)
                 val requestBody = MultipartBody.Builder()
                     .setType(MultipartBody.FORM)
-                    .addFormDataPart("video", "video.mp4",
-                        tmpFile.asRequestBody("video/mp4".toMediaType()))
                     .addFormDataPart("niche", niche)
                     .addFormDataPart("title", result.optString("caption", ""))
                     .addFormDataPart("transcript", result.optString("transcript", ""))
+                    .addFormDataPart("duration", durationSec.toString())
                     .build()
 
-                // 1) Submit the job — server returns a job_id immediately
                 val request = Request.Builder()
                     .url("$SERVER_URL/enhance")
                     .post(requestBody)
                     .build()
 
-                val submitResp = client.newCall(request).execute()
-                val submitBody = submitResp.body?.string() ?: throw Exception("لا يوجد رد")
-                if (!submitResp.isSuccessful) throw Exception("خطأ: ${submitResp.code}")
-                val jobId = JSONObject(submitBody).optString("job_id", "")
-                if (jobId.isEmpty()) throw Exception("لم يتم بدء المعالجة")
-                tmpFile.delete()
+                val resp = client.newCall(request).execute()
+                val body = resp.body?.string() ?: throw Exception("لا يوجد رد")
+                if (!resp.isSuccessful) throw Exception("خطأ: ${resp.code}")
+                val json = JSONObject(body)
 
-                // 2) Poll for the result (server processes in the background)
-                var hookText: String? = ""
-                var hookReason: String? = ""
-                var engageText: String? = ""
-                var ctaText: String? = ""
-                var algoBoost: String? = ""
-                var videoBytes: ByteArray? = null
+                val hookText = json.optString("hook_text", "")
+                val hookReason = json.optString("hook_reason", "")
+                val engageText = json.optString("engagement_text", "")
+                val ctaText = json.optString("cta_text", "")
+                val algoBoost = json.optString("algorithm_score_boost", "")
 
-                val maxAttempts = 150  // ~5 min at 2s intervals
-                var attempt = 0
-                while (attempt < maxAttempts) {
-                    attempt++
-                    val pollResp = client.newCall(
-                        Request.Builder().url("$SERVER_URL/enhance-result/$jobId").get().build()
-                    ).execute()
-
-                    when (pollResp.code) {
-                        200 -> {
-                            hookText = pollResp.header("X-Hook-Text", "")
-                            hookReason = pollResp.header("X-Hook-Reason", "")
-                            engageText = pollResp.header("X-Engage-Text", "")
-                            ctaText = pollResp.header("X-CTA-Text", "")
-                            algoBoost = pollResp.header("X-Algorithm-Boost", "")
-                            videoBytes = pollResp.body?.bytes()
-                        }
-                        202 -> {
-                            pollResp.close()
-                            withContext(Dispatchers.Main) {
-                                tvStatus.text = "🎬 جارٍ تحسين الفيديو... (${attempt * 2} ثانية)"
-                            }
-                            kotlinx.coroutines.delay(2000)
-                            continue
-                        }
-                        else -> {
-                            val errBody = pollResp.body?.string() ?: ""
-                            throw Exception("خطأ في المعالجة: ${pollResp.code} $errBody")
-                        }
-                    }
-                    break
+                // 2) Render the overlays ON THE DEVICE (fast, hardware accelerated)
+                withContext(Dispatchers.Main) {
+                    tvStatus.text = "🎬 جارٍ تحسين الفيديو على الجهاز..."
                 }
+                val outFile = File(cacheDir, "viral_enhanced_${System.currentTimeMillis()}.mp4")
+                renderOverlaysOnDevice(uri, hookText, engageText, ctaText, durationSec, outFile)
 
-                if (videoBytes == null) throw Exception("انتهت المهلة، حاول بفيديو أقصر")
-                saveVideoToGallery(videoBytes)
+                // 3) Save to gallery
+                saveVideoFileToGallery(outFile)
+                outFile.delete()
 
                 withContext(Dispatchers.Main) {
                     progressBar.visibility = View.GONE
                     btnEnhance.isEnabled = true
                     tvStatus.text = "✅ الفيديو المحسّن تم حفظه في المعرض!"
 
-                    // Show enhancement report
                     val report = buildString {
                         appendLine("🎬 التحسينات المُطبَّقة على الفيديو:")
                         appendLine("━━━━━━━━━━━━━━━━━")
-                        if (!hookText.isNullOrEmpty()) {
+                        if (hookText.isNotEmpty()) {
                             appendLine("\n🎣 Hook (أول 3 ثواني):")
                             appendLine("  \"$hookText\"")
-                            if (!hookReason.isNullOrEmpty()) appendLine("  💡 $hookReason")
+                            if (hookReason.isNotEmpty()) appendLine("  💡 $hookReason")
                         }
-                        if (!engageText.isNullOrEmpty()) {
+                        if (engageText.isNotEmpty()) {
                             appendLine("\n💬 نص التفاعل (المنتصف):")
                             appendLine("  \"$engageText\"")
                         }
-                        if (!ctaText.isNullOrEmpty()) {
+                        if (ctaText.isNotEmpty()) {
                             appendLine("\n📢 نداء للعمل (النهاية):")
                             appendLine("  \"$ctaText\"")
                         }
-                        if (!algoBoost.isNullOrEmpty()) {
+                        if (algoBoost.isNotEmpty()) {
                             appendLine("\n🚀 تأثير على الخوارزمية:")
                             appendLine("  $algoBoost")
                         }
@@ -328,6 +315,85 @@ class MainActivity : AppCompatActivity() {
                     tvStatus.text = "❌ خطأ في التحسين: ${e.message}"
                 }
             }
+        }
+    }
+
+    /** Burn Hook/Engagement/CTA text onto the video locally using Media3 Transformer. */
+    @OptIn(UnstableApi::class)
+    private suspend fun renderOverlaysOnDevice(
+        inputUri: Uri,
+        hook: String,
+        engage: String,
+        cta: String,
+        durationSec: Int,
+        outFile: File
+    ) = suspendCoroutine<Unit> { cont ->
+        val durationUs = if (durationSec > 0) durationSec * 1_000_000L else 30_000_000L
+        val hookEnd = minOf(3_000_000L, (durationUs * 0.2).toLong())
+        val engStart = (durationUs * 0.4).toLong()
+        val engEnd = (durationUs * 0.7).toLong()
+        val ctaStart = if (durationUs > 3_000_000L) durationUs - 3_000_000L else (durationUs * 0.8).toLong()
+
+        // One overlay per non-empty text, visible only inside its time window.
+        val overlays = ArrayList<TextureOverlay>()
+        if (hook.isNotEmpty())
+            overlays.add(WindowedTextOverlay(hook, 0L, hookEnd, topAnchorY = 0.75f))
+        if (engage.isNotEmpty())
+            overlays.add(WindowedTextOverlay(engage, engStart, engEnd, topAnchorY = -0.75f))
+        if (cta.isNotEmpty())
+            overlays.add(WindowedTextOverlay(cta, ctaStart, durationUs, topAnchorY = 0.75f))
+
+        if (overlays.isEmpty()) {
+            // Nothing to draw — just copy the original through
+            cont.resumeWith(Result.failure(Exception("لا توجد نصوص لإضافتها")))
+            return@suspendCoroutine
+        }
+
+        val overlayEffect = OverlayEffect(ImmutableList.copyOf(overlays))
+
+        val editedItem = EditedMediaItem.Builder(MediaItem.fromUri(inputUri))
+            .setEffects(Effects(emptyList(), listOf(overlayEffect)))
+            .build()
+
+        val transformer = Transformer.Builder(this)
+            .addListener(object : Transformer.Listener {
+                override fun onCompleted(composition: Composition, result: ExportResult) {
+                    cont.resume(Unit)
+                }
+                override fun onError(
+                    composition: Composition,
+                    result: ExportResult,
+                    exception: ExportException
+                ) {
+                    cont.resumeWith(Result.failure(Exception("فشل المعالجة: ${exception.message}")))
+                }
+            })
+            .build()
+
+        // Transformer must be started on the main thread
+        runOnUiThread {
+            transformer.start(editedItem, outFile.absolutePath)
+        }
+    }
+
+    private fun saveVideoFileToGallery(src: File) {
+        val filename = "viral_enhanced_${System.currentTimeMillis()}.mp4"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val values = ContentValues().apply {
+                put(MediaStore.Video.Media.DISPLAY_NAME, filename)
+                put(MediaStore.Video.Media.MIME_TYPE, "video/mp4")
+                put(MediaStore.Video.Media.RELATIVE_PATH, Environment.DIRECTORY_MOVIES)
+            }
+            val uri = contentResolver.insert(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, values)
+            uri?.let {
+                contentResolver.openOutputStream(it)?.use { out ->
+                    src.inputStream().use { input -> input.copyTo(out) }
+                }
+            }
+        } else {
+            val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES)
+            dir.mkdirs()
+            src.copyTo(File(dir, filename), overwrite = true)
         }
     }
 
@@ -480,5 +546,36 @@ class MainActivity : AppCompatActivity() {
         tvStatus.text = if (trendMatch > 0)
             "✅ تحليل مكتمل • توافق مع الترند: $trendMatch% ($trendUpdated)"
         else "✅ تحليل مكتمل"
+    }
+}
+
+/**
+ * A text overlay shown only within [startUs, endUs]. Outside the window it stays
+ * fully transparent. Positioned via [topAnchorY] in normalized coords:
+ * +0.75 = near the top, -0.75 = near the bottom.
+ */
+@UnstableApi
+class WindowedTextOverlay(
+    text: String,
+    private val startUs: Long,
+    private val endUs: Long,
+    private val topAnchorY: Float
+) : TextOverlay() {
+
+    private val span: SpannableString = SpannableString(text).apply {
+        setSpan(AbsoluteSizeSpan(72), 0, length, Spanned.SPAN_INCLUSIVE_INCLUSIVE)
+        setSpan(ForegroundColorSpan(Color.WHITE), 0, length, Spanned.SPAN_INCLUSIVE_INCLUSIVE)
+        setSpan(BackgroundColorSpan(Color.argb(160, 0, 0, 0)), 0, length, Spanned.SPAN_INCLUSIVE_INCLUSIVE)
+    }
+
+    override fun getText(presentationTimeUs: Long): SpannableString = span
+
+    override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings {
+        val visible = presentationTimeUs in startUs..endUs
+        return StaticOverlaySettings.Builder()
+            .setAlphaScale(if (visible) 1f else 0f)
+            .setBackgroundFrameAnchor(0f, topAnchorY)
+            .setOverlayFrameAnchor(0f, 0f)
+            .build()
     }
 }

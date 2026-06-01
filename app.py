@@ -615,110 +615,40 @@ Return JSON only:
         return None
 
 
-# In-memory job store for async video enhancement
-_enhance_jobs = {}
-_enhance_jobs_lock = threading.Lock()
-
-
-def _run_enhance_job(job_id, video_path, niche, title, transcript):
-    """Background worker: generate overlays + render video, store result."""
-    output_path = video_path + "_enhanced.mp4"
-    try:
-        duration = get_video_duration(video_path)
-        print(f"[{job_id}] Generating enhancements...")
-        enhancements = generate_algorithm_enhancements(niche, title, transcript, int(duration))
-        if not enhancements:
-            enhancements = {
-                "hook_text": "Watch till the end!",
-                "engagement_text": "Save this video",
-                "cta_text": "Share with a friend"
-            }
-        print(f"[{job_id}] Rendering video...")
-        success = enhance_video(video_path, enhancements, output_path, duration)
-
-        with _enhance_jobs_lock:
-            if success:
-                _enhance_jobs[job_id] = {
-                    "status": "done",
-                    "output_path": output_path,
-                    "enhancements": enhancements,
-                    "diag": _last_ffmpeg_diag,
-                }
-                print(f"[{job_id}] Done.")
-            else:
-                _enhance_jobs[job_id] = {"status": "error", "error": "فشل تحسين الفيديو"}
-                print(f"[{job_id}] Failed.")
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        with _enhance_jobs_lock:
-            _enhance_jobs[job_id] = {"status": "error", "error": str(e)}
-    finally:
-        if os.path.exists(video_path):
-            try:
-                os.unlink(video_path)
-            except Exception:
-                pass
-
-
 @app.route('/enhance', methods=['POST'])
 def enhance():
-    """Start async enhancement. Returns a job_id immediately; poll /enhance-result."""
-    if 'video' not in request.files:
-        return jsonify({"error": "لم يتم إرسال فيديو"}), 400
-
-    video_file = request.files['video']
+    """Return algorithm-based text suggestions as JSON. The video is now rendered
+    ON THE DEVICE (Media3 Transformer), so the server only generates the text —
+    fast, lightweight, and immune to the 502/timeout that video re-encoding caused."""
     niche = request.form.get('niche', 'عام')
     title = request.form.get('title', '')
     transcript = request.form.get('transcript', '')
+    try:
+        duration = int(float(request.form.get('duration', '0') or 0))
+    except Exception:
+        duration = 0
 
-    tmp_in = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False, dir=UPLOAD_FOLDER)
-    video_path = tmp_in.name
-    tmp_in.close()
-    video_file.save(video_path)
+    enhancements = generate_algorithm_enhancements(niche, title, transcript, duration)
+    if not enhancements:
+        enhancements = {
+            "hook_text": "Watch till the end!",
+            "hook_reason": "Strong hooks boost completion rate",
+            "engagement_text": "Save this video",
+            "engagement_reason": "Saves are a strong engagement signal",
+            "cta_text": "Share with a friend",
+            "algorithm_score_boost": "Shares multiply reach",
+        }
 
-    import uuid
-    job_id = uuid.uuid4().hex
-    with _enhance_jobs_lock:
-        _enhance_jobs[job_id] = {"status": "processing"}
-
-    threading.Thread(
-        target=_run_enhance_job,
-        args=(job_id, video_path, niche, title, transcript),
-        daemon=True,
-    ).start()
-
-    return jsonify({"job_id": job_id, "status": "processing"}), 200
-
-
-@app.route('/enhance-result/<job_id>', methods=['GET'])
-def enhance_result(job_id):
-    """Poll for an enhancement job. 202 while processing, 200 + video when done."""
-    with _enhance_jobs_lock:
-        job = _enhance_jobs.get(job_id)
-
-    if not job:
-        return jsonify({"status": "not_found"}), 404
-    if job["status"] == "processing":
-        return jsonify({"status": "processing"}), 202
-    if job["status"] == "error":
-        return jsonify({"status": "error", "error": job.get("error", "")}), 500
-
-    # done
-    output_path = job["output_path"]
-    if not (output_path and os.path.exists(output_path)):
-        return jsonify({"status": "error", "error": "الملف غير موجود"}), 500
-
-    enh = job.get("enhancements", {})
-    response = send_file(output_path, mimetype='video/mp4',
-                         as_attachment=True, download_name='enhanced_video.mp4')
-    response.headers['X-Hook-Text'] = clean_text(enh.get('hook_text', ''), 80)
-    response.headers['X-Hook-Reason'] = clean_text(enh.get('hook_reason', ''), 80)
-    response.headers['X-Engage-Text'] = clean_text(enh.get('engagement_text', ''), 80)
-    response.headers['X-CTA-Text'] = clean_text(enh.get('cta_text', ''), 80)
-    response.headers['X-Algorithm-Boost'] = clean_text(enh.get('algorithm_score_boost', ''), 80)
-    response.headers['X-Diag'] = clean_text(job.get("diag", ""), 200)
-    return response
+    # Ensure overlay texts are ASCII-safe (Media3 handles unicode, but keep clean)
+    return jsonify({
+        "hook_text": enhancements.get("hook_text", ""),
+        "hook_reason": enhancements.get("hook_reason", ""),
+        "engagement_text": enhancements.get("engagement_text", ""),
+        "engagement_reason": enhancements.get("engagement_reason", ""),
+        "cta_text": enhancements.get("cta_text", ""),
+        "visual_tip": enhancements.get("visual_tip", ""),
+        "algorithm_score_boost": enhancements.get("algorithm_score_boost", ""),
+    })
 
 
 @app.route('/diag-env', methods=['GET'])
@@ -797,7 +727,7 @@ def health():
     trend_data = load_trend_data("عام")
     return jsonify({
         "status": "ok",
-        "version": "async-1",
+        "version": "ondevice-1",
         "ffmpeg": _FFMPEG_BIN,
         "trends_loaded": bool(trend_data),
         "trends_updated": trend_data.get('last_updated', 'N/A')[:10] if trend_data else 'N/A'
