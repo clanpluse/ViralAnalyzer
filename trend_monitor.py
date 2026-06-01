@@ -85,37 +85,25 @@ def github_update_file(path, content, sha, message):
         return False
 
 
+# Known real TikTok accounts per niche
+KNOWN_ACCOUNTS = {
+    "تصاميم منزلية وديكور": ["do.it.yourself.home", "homedesignideas", "interiordesign", "architectlife", "homedecortiktok"],
+    "تسويق منتجات": ["garyvee", "alexhormozi", "marketingmax", "socialmediaexaminer", "hubspot"],
+    "أزياء وموضة": ["voguemagazine", "fashionnova", "zara", "hm", "fashiontiktok"],
+    "طعام ومطاعم": ["gordonramsay", "tasty", "nytcooking", "bingingwithbabish", "food52"],
+    "تقنية وإلكترونيات": ["mkbhd", "unboxtherapy", "technewsday", "linus_tech", "verge"],
+    "رياضة ولياقة": ["cristiano", "nike", "gymtok", "fitnesstok", "healthtips"],
+    "سفر وسياحة": ["natgeotravel", "lonelyplanet", "traveltiktok", "wanderlust", "backpacking"],
+    "عام": ["khaby.lame", "charlidamelio", "addisonre", "bellapoarch", "zachking"]
+}
+
+
 def discover_trending_accounts(niche):
-    """Use Claude to discover real trending TikTok accounts for a niche."""
-    print(f"  Discovering accounts for: {niche}")
-    prompt = f"""You are a TikTok expert who knows real popular accounts.
-
-Give me 8 REAL TikTok usernames for the niche: "{niche}"
-
-RULES:
-- Only real TikTok usernames that actually exist
-- Usernames must be in English/Latin characters only (no Arabic)
-- Popular accounts with millions of views
-- Format: just the username, one per line, no @ symbol, no explanations
-- Examples of valid format: cristiano, khaby.lame, charlidamelio
-
-Return ONLY usernames, one per line:"""
-
-    response = call_claude(prompt, max_tokens=300)
-    if not response:
-        return []
-
-    accounts = []
-    for line in response.strip().split('\n'):
-        line = line.strip().strip('@').strip('-').strip('*').strip('•').strip()
-        line = line.split(' ')[0].split('\t')[0].split('(')[0]
-        # Only accept ASCII usernames (no Arabic)
-        if line and 2 < len(line) < 50 and line.isascii() and '.' not in line.replace('.', '') or line.replace('.', '').replace('_', '').isalnum():
-            if line.replace('.', '').replace('_', '').isalnum():
-                accounts.append(line)
-
-    print(f"  Discovered {len(accounts)} accounts: {accounts[:5]}")
-    return accounts[:8]
+    """Return known real TikTok accounts for a niche."""
+    print(f"  Loading known accounts for: {niche}")
+    accounts = KNOWN_ACCOUNTS.get(niche, KNOWN_ACCOUNTS["عام"])
+    print(f"  Using {len(accounts)} known accounts: {accounts}")
+    return accounts
 
 
 def get_account_videos(username, count=10):
