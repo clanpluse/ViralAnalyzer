@@ -372,24 +372,43 @@ def health():
 @app.route('/test-claude', methods=['GET'])
 def test_claude():
     """Test Anthropic API connectivity."""
-    try:
-        import httpx
-        # Test basic connectivity
-        r = httpx.get("https://api.anthropic.com", timeout=10)
-        connectivity = f"HTTP {r.status_code}"
-    except Exception as e:
-        connectivity = f"Failed: {e}"
+    results = {}
 
+    # Test 1: GET to Anthropic
     try:
-        result = call_claude("قل مرحبا", max_tokens=10)
-        claude_status = f"✅ Working: {result}"
+        r = requests.get("https://api.anthropic.com", timeout=10)
+        results["get_anthropic"] = f"HTTP {r.status_code}"
     except Exception as e:
-        claude_status = f"❌ {str(e)[:200]}"
+        results["get_anthropic"] = f"Failed: {type(e).__name__}: {e}"
 
-    return jsonify({
-        "anthropic_connectivity": connectivity,
-        "claude_api": claude_status
-    })
+    # Test 2: POST to httpbin (test if POST works at all)
+    try:
+        r = requests.post("https://httpbin.org/post", json={"test": "ok"}, timeout=10)
+        results["post_httpbin"] = f"HTTP {r.status_code}"
+    except Exception as e:
+        results["post_httpbin"] = f"Failed: {type(e).__name__}: {e}"
+
+    # Test 3: POST to Anthropic
+    try:
+        r = requests.post(
+            'https://api.anthropic.com/v1/messages',
+            headers={
+                'x-api-key': ANTHROPIC_API_KEY[:10] + '...' if ANTHROPIC_API_KEY else 'None',
+                'anthropic-version': '2023-06-01',
+                'content-type': 'application/json'
+            },
+            json={'model': 'claude-haiku-4-5-20251001', 'max_tokens': 5,
+                  'messages': [{'role': 'user', 'content': 'hi'}]},
+            timeout=15
+        )
+        results["post_anthropic"] = f"HTTP {r.status_code}: {r.text[:100]}"
+    except Exception as e:
+        results["post_anthropic"] = f"Failed: {type(e).__name__}: {str(e)[:200]}"
+
+    # Test 4: API key check
+    results["api_key_set"] = bool(ANTHROPIC_API_KEY) and len(ANTHROPIC_API_KEY) > 10
+
+    return jsonify(results)
 
 
 if __name__ == '__main__':
