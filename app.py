@@ -52,11 +52,13 @@ def call_claude(messages_content, max_tokens=1500):
             time.sleep(3)
     return None
 
-# Add ffmpeg to PATH automatically
+# Add ffmpeg to PATH automatically and warm it up (downloads binary on first call)
 try:
     import static_ffmpeg
     static_ffmpeg.add_paths()
     print("ffmpeg added to PATH via static-ffmpeg")
+    _warmup = subprocess.run(["ffmpeg", "-version"], capture_output=True, timeout=120)
+    print("ffmpeg warmed up OK" if _warmup.returncode == 0 else "ffmpeg warmup failed")
 except Exception as e:
     print(f"static-ffmpeg not available: {e}")
 GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
@@ -395,10 +397,51 @@ def enhance_video(video_path, enhancements, output_path, duration=30):
     engage_end = duration * 0.7
     cta_start = max(duration - 4, duration * 0.8)
 
-    # Direct file copy — no ffmpeg needed, avoids timeout on Railway
-    import shutil
-    shutil.copy2(video_path, output_path)
-    print(f"Video copied directly")
+    hook_text = clean_text(enhancements.get("hook_text", ""), 40)
+    engage_text = clean_text(enhancements.get("engagement_text", ""), 40)
+    cta_text = clean_text(enhancements.get("cta_text", ""), 40)
+
+    hook_end = min(3.0, duration * 0.2) if duration > 0 else 3.0
+    engage_start = duration * 0.4 if duration > 0 else 8.0
+    engage_end = duration * 0.7 if duration > 0 else 14.0
+    cta_start = (duration - 3) if duration > 3 else max(duration * 0.8, 0)
+
+    filters = []
+    if hook_text:
+        filters.append(
+            f"drawtext=text='{hook_text}':x=(w-text_w)/2:y=h*0.1"
+            f":fontsize=28:fontcolor=white:box=1:boxcolor=black@0.6:boxborderw=6"
+            f":enable='between(t,0,{hook_end:.1f})'"
+        )
+    if engage_text:
+        filters.append(
+            f"drawtext=text='{engage_text}':x=(w-text_w)/2:y=h*0.85"
+            f":fontsize=24:fontcolor=yellow:box=1:boxcolor=black@0.6:boxborderw=5"
+            f":enable='between(t,{engage_start:.1f},{engage_end:.1f})'"
+        )
+    if cta_text:
+        filters.append(
+            f"drawtext=text='{cta_text}':x=(w-text_w)/2:y=h*0.1"
+            f":fontsize=26:fontcolor=white:box=1:boxcolor=black@0.7:boxborderw=6"
+            f":enable='gte(t,{cta_start:.1f})'"
+        )
+
+    if filters:
+        vf = ",".join(filters)
+        cmd = [ffmpeg, "-y", "-i", video_path, "-vf", vf,
+               "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
+               "-c:a", "copy", output_path]
+        print(f"Applying text overlays...")
+        result = subprocess.run(cmd, capture_output=True, timeout=90)
+        print(f"FFmpeg return code: {result.returncode}")
+        if result.returncode != 0:
+            print(f"FFmpeg error: {result.stderr.decode(errors='replace')[-300:]}")
+
+    if not (os.path.exists(output_path) and os.path.getsize(output_path) > 0):
+        import shutil
+        shutil.copy2(video_path, output_path)
+        print("Fallback: used original video")
+
     return os.path.exists(output_path) and os.path.getsize(output_path) > 0
 
 
