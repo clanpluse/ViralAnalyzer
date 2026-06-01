@@ -483,7 +483,9 @@ def enhance_video(video_path, enhancements, output_path, duration=30):
 
     # drawtext needs an explicit font file — no system fonts on Railway
     font_path = download_arabic_font()
-    font_arg = f":fontfile='{font_path}'" if font_path else ""
+    # No surrounding quotes — avfilter treats them as literal chars in the path.
+    # Escape any ':' (none in our Linux path) per avfilter rules just in case.
+    font_arg = f":fontfile={font_path.replace(':', r'\:')}" if font_path else ""
 
     filters = []
     if hook_text:
@@ -685,6 +687,35 @@ def diag_env():
     return jsonify(info)
 
 
+@app.route('/diag-draw', methods=['GET'])
+def diag_draw():
+    """Run drawtext in isolation on a generated source and return full stderr."""
+    ffmpeg = get_ffmpeg_path()
+    font_path = download_arabic_font()
+    out = os.path.join(tempfile.gettempdir(), "diag_draw.mp4")
+    results = {}
+    variants = {
+        "fontfile_noquote": f"drawtext=text=Hello:fontfile={font_path}:x=10:y=10:fontsize=24:fontcolor=white",
+        "fontfile_quote": f"drawtext=text=Hello:fontfile='{font_path}':x=10:y=10:fontsize=24:fontcolor=white",
+        "font_cairo": "drawtext=text=Hello:font=Cairo:x=10:y=10:fontsize=24:fontcolor=white",
+    }
+    for name, vf in variants.items():
+        try:
+            cmd = [ffmpeg, "-y", "-f", "lavfi", "-i", "color=c=blue:s=320x240:d=1",
+                   "-vf", vf, "-frames:v", "1", out]
+            r = subprocess.run(cmd, capture_output=True, timeout=40)
+            err = r.stderr.decode(errors="replace")
+            results[name] = {"rc": r.returncode,
+                             "ok": r.returncode == 0 and os.path.exists(out),
+                             "err": clean_text(err[-300:], 300)}
+        except Exception as e:
+            results[name] = {"error": str(e)}
+    return jsonify({"font_path": font_path,
+                    "font_exists": bool(font_path and os.path.isfile(font_path)),
+                    "fontconfig_file": os.environ.get("FONTCONFIG_FILE"),
+                    "variants": results})
+
+
 @app.route('/trend-report', methods=['GET'])
 def trend_report():
     """Get latest trend report."""
@@ -711,7 +742,7 @@ def health():
     trend_data = load_trend_data("عام")
     return jsonify({
         "status": "ok",
-        "version": "fontconfig-1",
+        "version": "fontconfig-2",
         "ffmpeg": _FFMPEG_BIN,
         "trends_loaded": bool(trend_data),
         "trends_updated": trend_data.get('last_updated', 'N/A')[:10] if trend_data else 'N/A'
