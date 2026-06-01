@@ -4,3 +4,4 @@ openai-whisper
 requests
 schedule
 static-ffmpeg
+httpx[http2]

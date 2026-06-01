@@ -13,9 +13,13 @@ from anthropic import Anthropic
 from datetime import datetime
 
 app = Flask(__name__)
+
+# Force HTTP/1.1 to avoid HTTP/2 issues on Railway
+import httpx
+_http_client = httpx.Client(http2=False, timeout=60.0)
 client = Anthropic(
     api_key=os.environ.get('ANTHROPIC_API_KEY'),
-    timeout=60.0,
+    http_client=_http_client,
     max_retries=3
 )
 
