@@ -389,38 +389,30 @@ def enhance_video(video_path, enhancements, output_path, duration=30):
     engage_end = duration * 0.7
     cta_start = max(duration - 4, duration * 0.8)
 
-    # Build filter - start with visual enhancement only
-    filter_parts = ["eq=brightness=0.05:contrast=1.1:saturation=1.15"]
+    # Build filters list for filtergraph
+    vf_filters = []
 
-    # Add text overlays one by one with safe syntax
+    # 1. Visual enhancement
+    vf_filters.append("eq=brightness=0.05:contrast=1.1:saturation=1.15")
+
+    # 2. Try adding text overlays (no enable expression to avoid syntax issues)
     hook = clean_text(enhancements.get('hook_text', ''))
     if hook:
-        filter_parts.append(
-            f"drawtext=text='{hook}':fontsize=40:fontcolor=white"
+        vf_filters.append(
+            f"drawtext=text={hook}:fontsize=40:fontcolor=white"
             f":x=(w-text_w)/2:y=50"
-            f":enable='lte(t\\,{hook_end:.1f})'"
-            f":box=1:boxcolor=0x000000@0.6:boxborderw=8"
+            f":box=1:boxcolor=black@0.6:boxborderw=8"
         )
 
     engage = clean_text(enhancements.get('engagement_text', ''))
     if engage:
-        filter_parts.append(
-            f"drawtext=text='{engage}':fontsize=34:fontcolor=yellow"
-            f":x=(w-text_w)/2:y=(h-text_h-60)"
-            f":enable='gte(t\\,{engage_start:.1f})*lte(t\\,{engage_end:.1f})'"
-            f":box=1:boxcolor=0x000000@0.5:boxborderw=6"
+        vf_filters.append(
+            f"drawtext=text={engage}:fontsize=32:fontcolor=yellow"
+            f":x=(w-text_w)/2:y=(h-120)"
+            f":box=1:boxcolor=black@0.5:boxborderw=6"
         )
 
-    cta = clean_text(enhancements.get('cta_text', ''))
-    if cta:
-        filter_parts.append(
-            f"drawtext=text='{cta}':fontsize=36:fontcolor=white"
-            f":x=(w-text_w)/2:y=(h-text_h-60)"
-            f":enable='gte(t\\,{cta_start:.1f})'"
-            f":box=1:boxcolor=0xff0000@0.6:boxborderw=8"
-        )
-
-    filter_str = ",".join(filter_parts)
+    filter_str = ",".join(vf_filters)
 
     result = subprocess.run([
         ffmpeg, "-y", "-i", video_path,
