@@ -382,8 +382,6 @@ def clean_text(text, max_len=55):
 def enhance_video(video_path, enhancements, output_path, duration=30):
     """Apply algorithm-based text overlays and visual enhancements."""
     ffmpeg = get_ffmpeg_path()
-    font_path = download_arabic_font()
-    font_param = f":fontfile={font_path}" if font_path and os.path.exists(font_path) else ""
 
     # Calculate timing based on video duration
     hook_end = min(3.0, duration * 0.15)
@@ -404,7 +402,6 @@ def enhance_video(video_path, enhancements, output_path, duration=30):
             f":fontsize=44:fontcolor=white:x=(w-text_w)/2:y=h*0.07"
             f":enable='between(t,0,{hook_end})'"
             f":box=1:boxcolor=black@0.65:boxborderw=10"
-            f"{font_param}"
         )
 
     # 3. Engagement trigger text (middle) - boosts comments/saves
@@ -415,7 +412,6 @@ def enhance_video(video_path, enhancements, output_path, duration=30):
             f":fontsize=36:fontcolor=yellow:x=(w-text_w)/2:y=h*0.78"
             f":enable='between(t,{engage_start},{engage_end})'"
             f":box=1:boxcolor=black@0.6:boxborderw=8"
-            f"{font_param}"
         )
 
     # 4. CTA text (end) - boosts shares
@@ -426,7 +422,6 @@ def enhance_video(video_path, enhancements, output_path, duration=30):
             f":fontsize=38:fontcolor=white:x=(w-text_w)/2:y=h*0.85"
             f":enable='gt(t,{cta_start})'"
             f":box=1:boxcolor=red@0.7:boxborderw=8"
-            f"{font_param}"
         )
 
     filter_str = ",".join(filters)
@@ -452,37 +447,38 @@ def generate_algorithm_enhancements(niche, title, transcript, duration):
     trend_context = ""
     if trend_data:
         trend_context = f"""
-بيانات الترند الحقيقية لمجال "{niche}":
-- المدة المثالية: {trend_data.get('optimal_duration_seconds', 30)} ثانية
-- أنماط Hook ناجحة: {', '.join(trend_data.get('hook_patterns', [])[:3])}
-- محفزات التفاعل: {', '.join(trend_data.get('engagement_triggers', [])[:3])}
+Real trend data for "{niche}":
+- Optimal duration: {trend_data.get('optimal_duration_seconds', 30)}s
+- Successful hook patterns: {', '.join(trend_data.get('hook_patterns', [])[:3])}
+- Engagement triggers: {', '.join(trend_data.get('engagement_triggers', [])[:3])}
 """
 
-    prompt = f"""أنت خبير متخصص في خوارزميات TikTok 2024-2025.
+    prompt = f"""You are a TikTok algorithm expert (2024-2025).
 
-خوارزمية TikTok تعتمد على:
-1. معدل الإكمال (Completion Rate) - أهم عامل
-2. معدل الإعادة (Rewatch Rate)
-3. التعليقات والحفظ أقوى من اللايك
-4. المشاركة (Share) يضاعف الوصول 10x
-5. أول 1.5 ثانية تحدد إذا يستمر المشاهد
+TikTok algorithm factors:
+1. Completion Rate - most important
+2. Rewatch Rate
+3. Comments & Saves stronger than likes
+4. Shares multiply reach 10x
+5. First 1.5 seconds determine if viewer stays
 
-معلومات الفيديو:
-- المجال: {niche}
-- العنوان: {title or 'غير محدد'}
-- الكلام: {transcript or 'بدون كلام'}
-- المدة: {duration} ثانية
+Video info:
+- Niche: {niche}
+- Title: {title or 'unknown'}
+- Speech: {transcript or 'no speech'}
+- Duration: {duration}s
 {trend_context}
 
-بناءً على هذه الخوارزميات، أعطني نصوص التحسين بصيغة JSON فقط:
+Generate ENGLISH text overlays for the video (must be simple ASCII, no special chars).
+Return JSON only:
 {{
-  "hook_text": "جملة تُوقف الإصبع في أول 1.5 ثانية (5-7 كلمات، تبدأ بسؤال أو رقم أو تحدٍّ)",
-  "hook_reason": "لماذا هذا الـ Hook يرفع معدل الإكمال",
-  "engagement_text": "نص يظهر في المنتصف يحفز التعليق أو الحفظ (4-6 كلمات)",
-  "engagement_reason": "لماذا يرفع التفاعل",
-  "cta_text": "نداء للعمل في النهاية يزيد المشاركة (3-5 كلمات)",
-  "visual_tip": "نصيحة بصرية مهمة لهذا الفيديو",
-  "algorithm_score_boost": "كيف ستساعد هذه التحسينات الخوارزمية تحديداً"
+  "hook_text": "Short hook text for first 3 seconds (max 6 words, starts with number/question/challenge)",
+  "hook_reason": "Why this hook boosts completion rate",
+  "engagement_text": "Middle text to trigger comments/saves (max 5 words)",
+  "engagement_reason": "Why this boosts engagement",
+  "cta_text": "End CTA to boost shares (max 4 words)",
+  "visual_tip": "Key visual tip for this video",
+  "algorithm_score_boost": "How these improvements help the algorithm specifically"
 }}"""
 
     response = call_claude(prompt, max_tokens=600)
