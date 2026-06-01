@@ -86,30 +86,33 @@ def github_update_file(path, content, sha, message):
 
 
 def discover_trending_accounts(niche):
-    """Use Claude to discover trending TikTok accounts for a niche."""
+    """Use Claude to discover real trending TikTok accounts for a niche."""
     print(f"  Discovering accounts for: {niche}")
-    prompt = f"""أنت خبير في TikTok ومتابع للحسابات الرائجة.
+    prompt = f"""You are a TikTok expert who knows real popular accounts.
 
-اعطني قائمة بـ 8 حسابات TikTok ناجحة ورائجة في مجال "{niche}".
+Give me 8 REAL TikTok usernames for the niche: "{niche}"
 
-الشروط:
-- حسابات حقيقية وموجودة على TikTok
-- لديها متابعين كثيرين وتفاعل عالٍ
-- تنشر محتوى باللغة العربية أو المحتوى المناسب للجمهور العربي
-- ليس بالضرورة حسابات عربية، يمكن أن تكون عالمية ناجحة
+RULES:
+- Only real TikTok usernames that actually exist
+- Usernames must be in English/Latin characters only (no Arabic)
+- Popular accounts with millions of views
+- Format: just the username, one per line, no @ symbol, no explanations
+- Examples of valid format: cristiano, khaby.lame, charlidamelio
 
-أعطني أسماء المستخدمين فقط، بدون @ أو أي شرح، كل اسم في سطر."""
+Return ONLY usernames, one per line:"""
 
-    response = call_claude(prompt, max_tokens=500)
+    response = call_claude(prompt, max_tokens=300)
     if not response:
         return []
 
     accounts = []
     for line in response.strip().split('\n'):
         line = line.strip().strip('@').strip('-').strip('*').strip('•').strip()
-        line = line.split(' ')[0].split('\t')[0]
-        if line and 2 < len(line) < 50 and ' ' not in line:
-            accounts.append(line)
+        line = line.split(' ')[0].split('\t')[0].split('(')[0]
+        # Only accept ASCII usernames (no Arabic)
+        if line and 2 < len(line) < 50 and line.isascii() and '.' not in line.replace('.', '') or line.replace('.', '').replace('_', '').isalnum():
+            if line.replace('.', '').replace('_', '').isalnum():
+                accounts.append(line)
 
     print(f"  Discovered {len(accounts)} accounts: {accounts[:5]}")
     return accounts[:8]
