@@ -1,6 +1,12 @@
 import os
 import sys
 import json
+
+# Fix encoding on Windows so Arabic/emoji in print() don't crash the process
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 import base64
 import tempfile
 import subprocess
@@ -32,7 +38,7 @@ def call_claude(messages_content, max_tokens=1500):
                     'max_tokens': max_tokens,
                     'messages': [{'role': 'user', 'content': messages_content}]
                 },
-                timeout=60
+                timeout=30
             )
             data = response.json()
             if 'content' in data:
@@ -42,7 +48,7 @@ def call_claude(messages_content, max_tokens=1500):
         except Exception as e:
             print(f"Claude attempt {attempt+1} failed: {e}")
             if attempt == 2:
-                raise
+                return None
             time.sleep(3)
     return None
 
@@ -50,9 +56,9 @@ def call_claude(messages_content, max_tokens=1500):
 try:
     import static_ffmpeg
     static_ffmpeg.add_paths()
-    print("✅ ffmpeg added to PATH via static-ffmpeg")
+    print("ffmpeg added to PATH via static-ffmpeg")
 except Exception as e:
-    print(f"⚠️ static-ffmpeg not available: {e}")
+    print(f"static-ffmpeg not available: {e}")
 GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
 GITHUB_REPO = "clanpluse/ViralAnalyzer"
 UPLOAD_FOLDER = tempfile.gettempdir()
@@ -389,22 +395,28 @@ def enhance_video(video_path, enhancements, output_path, duration=30):
     engage_end = duration * 0.7
     cta_start = max(duration - 4, duration * 0.8)
 
-    # Simple visual enhancement only (no text to avoid filter issues)
     filter_str = "eq=brightness=0.05:contrast=1.1:saturation=1.15"
 
-    cmd = [ffmpeg, "-y", "-i", video_path, "-vf", filter_str, output_path]
-    print(f"FFmpeg cmd: {' '.join(cmd[-4:])}")
-
+    # Try with visual filter and explicit codec
+    cmd = [
+        ffmpeg, "-y", "-i", video_path,
+        "-vf", filter_str,
+        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
+        "-c:a", "aac", "-b:a", "128k",
+        "-movflags", "+faststart",
+        output_path
+    ]
+    print(f"FFmpeg enhance cmd running...")
     result = subprocess.run(cmd, capture_output=True, timeout=120)
-
     print(f"FFmpeg return code: {result.returncode}")
+
     if result.returncode != 0:
         err = result.stderr.decode('utf-8', errors='replace')
-        # Find actual error line
-        for line in err.split('\n'):
-            if 'Error' in line or 'Invalid' in line or 'No such' in line or 'Unknown' in line:
-                print(f"FFmpeg error detail: {line}")
-        print(f"FFmpeg stderr tail: {err[-500:]}")
+        print(f"FFmpeg error: {err[-500:]}")
+        # Fallback: simple copy without filter
+        copy_cmd = [ffmpeg, "-y", "-i", video_path, "-c", "copy", output_path]
+        copy_result = subprocess.run(copy_cmd, capture_output=True, timeout=60)
+        print(f"FFmpeg fallback copy: {copy_result.returncode}")
 
     return os.path.exists(output_path) and os.path.getsize(output_path) > 0
 
@@ -495,9 +507,9 @@ def enhance():
 
         if not enhancements:
             enhancements = {
-                "hook_text": "شاهد حتى النهاية!",
-                "engagement_text": "احفظ هذا الفيديو",
-                "cta_text": "شاركه مع صديق"
+                "hook_text": "Watch till the end!",
+                "engagement_text": "Save this video",
+                "cta_text": "Share with a friend"
             }
 
         print(f"Hook: {enhancements.get('hook_text')}")
@@ -542,7 +554,7 @@ def enhance():
 @app.route('/trend-report', methods=['GET'])
 def trend_report():
     """Get latest trend report."""
-    content, _ = github_get_file('data/trend_report.json')
+    content = github_get_file('data/trend_report.json')
     if content:
         return jsonify(json.loads(content))
     return jsonify({
