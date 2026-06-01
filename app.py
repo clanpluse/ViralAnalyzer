@@ -94,10 +94,13 @@ ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
 
 
 def _setup_fontconfig():
-    """The static-ffmpeg build has fontconfig compiled in but ships no config file,
-    which makes drawtext fail ('Cannot load default config file' -> font 'Sans' not
-    found). Write a minimal fonts.conf pointing at our bundled font and export
-    FONTCONFIG_FILE so fontconfig initializes successfully."""
+    """The static-ffmpeg build has fontconfig compiled in but ships no config file.
+    Only relevant when there is NO system fontconfig. On Debian (our Dockerfile)
+    /etc/fonts/fonts.conf already exists and works with the installed fonts, so we
+    must NOT override it — doing so would hide the system fonts and break drawtext."""
+    if os.path.isfile("/etc/fonts/fonts.conf"):
+        print("System fontconfig present (/etc/fonts/fonts.conf) — not overriding")
+        return
     try:
         cache_dir = os.path.join(tempfile.gettempdir(), "fontcache")
         os.makedirs(cache_dir, exist_ok=True)
@@ -742,7 +745,7 @@ def health():
     trend_data = load_trend_data("عام")
     return jsonify({
         "status": "ok",
-        "version": "docker-1",
+        "version": "docker-2",
         "ffmpeg": _FFMPEG_BIN,
         "trends_loaded": bool(trend_data),
         "trends_updated": trend_data.get('last_updated', 'N/A')[:10] if trend_data else 'N/A'
