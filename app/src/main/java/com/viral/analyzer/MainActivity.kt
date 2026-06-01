@@ -230,25 +230,62 @@ class MainActivity : AppCompatActivity() {
                     .addFormDataPart("transcript", result.optString("transcript", ""))
                     .build()
 
+                // 1) Submit the job — server returns a job_id immediately
                 val request = Request.Builder()
                     .url("$SERVER_URL/enhance")
                     .post(requestBody)
                     .build()
 
-                val response = client.newCall(request).execute()
-                if (!response.isSuccessful) throw Exception("خطأ: ${response.code}")
-
-                // Get enhancement info from headers
-                val hookText = response.header("X-Hook-Text", "")
-                val hookReason = response.header("X-Hook-Reason", "")
-                val engageText = response.header("X-Engage-Text", "")
-                val ctaText = response.header("X-CTA-Text", "")
-                val algoBoost = response.header("X-Algorithm-Boost", "")
-
-                // Save enhanced video to gallery
-                val videoBytes = response.body?.bytes() ?: throw Exception("لا يوجد فيديو")
-                saveVideoToGallery(videoBytes)
+                val submitResp = client.newCall(request).execute()
+                val submitBody = submitResp.body?.string() ?: throw Exception("لا يوجد رد")
+                if (!submitResp.isSuccessful) throw Exception("خطأ: ${submitResp.code}")
+                val jobId = JSONObject(submitBody).optString("job_id", "")
+                if (jobId.isEmpty()) throw Exception("لم يتم بدء المعالجة")
                 tmpFile.delete()
+
+                // 2) Poll for the result (server processes in the background)
+                var hookText: String? = ""
+                var hookReason: String? = ""
+                var engageText: String? = ""
+                var ctaText: String? = ""
+                var algoBoost: String? = ""
+                var videoBytes: ByteArray? = null
+
+                val maxAttempts = 150  // ~5 min at 2s intervals
+                var attempt = 0
+                while (attempt < maxAttempts) {
+                    attempt++
+                    val pollResp = client.newCall(
+                        Request.Builder().url("$SERVER_URL/enhance-result/$jobId").get().build()
+                    ).execute()
+
+                    when (pollResp.code) {
+                        200 -> {
+                            hookText = pollResp.header("X-Hook-Text", "")
+                            hookReason = pollResp.header("X-Hook-Reason", "")
+                            engageText = pollResp.header("X-Engage-Text", "")
+                            ctaText = pollResp.header("X-CTA-Text", "")
+                            algoBoost = pollResp.header("X-Algorithm-Boost", "")
+                            videoBytes = pollResp.body?.bytes()
+                        }
+                        202 -> {
+                            pollResp.close()
+                            withContext(Dispatchers.Main) {
+                                tvStatus.text = "🎬 جارٍ تحسين الفيديو... (${attempt * 2} ثانية)"
+                            }
+                            kotlinx.coroutines.delay(2000)
+                            continue
+                        }
+                        else -> {
+                            val errBody = pollResp.body?.string() ?: ""
+                            throw Exception("خطأ في المعالجة: ${pollResp.code} $errBody")
+                        }
+                    }
+                    break
+                }
+
+                if (videoBytes == null) throw Exception("انتهت المهلة، حاول بفيديو أقصر")
+                saveVideoToGallery(videoBytes)
 
                 withContext(Dispatchers.Main) {
                     progressBar.visibility = View.GONE
