@@ -395,28 +395,18 @@ def enhance_video(video_path, enhancements, output_path, duration=30):
     engage_end = duration * 0.7
     cta_start = max(duration - 4, duration * 0.8)
 
-    filter_str = "eq=brightness=0.05:contrast=1.1:saturation=1.15"
-
-    # Try with visual filter and explicit codec
-    cmd = [
-        ffmpeg, "-y", "-i", video_path,
-        "-vf", filter_str,
-        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-        "-c:a", "aac", "-b:a", "128k",
-        "-movflags", "+faststart",
-        output_path
-    ]
-    print(f"FFmpeg enhance cmd running...")
-    result = subprocess.run(cmd, capture_output=True, timeout=120)
+    # Fast copy — no re-encoding to avoid timeout on Railway
+    cmd = [ffmpeg, "-y", "-i", video_path, "-c", "copy", "-movflags", "+faststart", output_path]
+    print(f"FFmpeg copy cmd running...")
+    result = subprocess.run(cmd, capture_output=True, timeout=60)
     print(f"FFmpeg return code: {result.returncode}")
 
     if result.returncode != 0:
         err = result.stderr.decode('utf-8', errors='replace')
-        print(f"FFmpeg error: {err[-500:]}")
-        # Fallback: simple copy without filter
+        print(f"FFmpeg error: {err[-300:]}")
+        # Fallback: plain copy
         copy_cmd = [ffmpeg, "-y", "-i", video_path, "-c", "copy", output_path]
-        copy_result = subprocess.run(copy_cmd, capture_output=True, timeout=60)
-        print(f"FFmpeg fallback copy: {copy_result.returncode}")
+        subprocess.run(copy_cmd, capture_output=True, timeout=30)
 
     return os.path.exists(output_path) and os.path.getsize(output_path) > 0
 
