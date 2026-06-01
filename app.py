@@ -13,15 +13,38 @@ from anthropic import Anthropic
 from datetime import datetime
 
 app = Flask(__name__)
+ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY')
 
-# Force HTTP/1.1 to avoid HTTP/2 issues on Railway
-import httpx
-_http_client = httpx.Client(http2=False, timeout=60.0)
-client = Anthropic(
-    api_key=os.environ.get('ANTHROPIC_API_KEY'),
-    http_client=_http_client,
-    max_retries=3
-)
+
+def call_claude(messages_content, max_tokens=1500):
+    """Call Anthropic API directly via requests (bypasses SDK HTTP/2 issues)."""
+    for attempt in range(3):
+        try:
+            response = requests.post(
+                'https://api.anthropic.com/v1/messages',
+                headers={
+                    'x-api-key': ANTHROPIC_API_KEY,
+                    'anthropic-version': '2023-06-01',
+                    'content-type': 'application/json'
+                },
+                json={
+                    'model': 'claude-haiku-4-5-20251001',
+                    'max_tokens': max_tokens,
+                    'messages': [{'role': 'user', 'content': messages_content}]
+                },
+                timeout=60
+            )
+            data = response.json()
+            if 'content' in data:
+                return data['content'][0]['text']
+            else:
+                raise Exception(f"API error: {data}")
+        except Exception as e:
+            print(f"Claude attempt {attempt+1} failed: {e}")
+            if attempt == 2:
+                raise
+            time.sleep(3)
+    return None
 
 # Add ffmpeg to PATH automatically
 try:
@@ -217,21 +240,10 @@ def analyze_with_claude(duration, transcript, frame_base64, niche):
             }
         })
 
-    for attempt in range(3):
-        try:
-            message = client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=1500,
-                messages=[{"role": "user", "content": content}]
-            )
-            break
-        except Exception as e:
-            print(f"Claude attempt {attempt+1} failed: {e}")
-            if attempt == 2:
-                raise
-            time.sleep(3)
-
-    response_text = message.content[0].text.strip()
+    response_text = call_claude(content, max_tokens=1500)
+    if not response_text:
+        raise Exception("No response from Claude")
+    response_text = response_text.strip()
     if "```" in response_text:
         response_text = response_text.split("```")[1]
         if response_text.startswith("json"):
@@ -369,12 +381,8 @@ def test_claude():
         connectivity = f"Failed: {e}"
 
     try:
-        msg = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=10,
-            messages=[{"role": "user", "content": "hi"}]
-        )
-        claude_status = "✅ Working"
+        result = call_claude("قل مرحبا", max_tokens=10)
+        claude_status = f"✅ Working: {result}"
     except Exception as e:
         claude_status = f"❌ {str(e)[:200]}"
 
