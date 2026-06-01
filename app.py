@@ -395,19 +395,10 @@ def enhance_video(video_path, enhancements, output_path, duration=30):
     engage_end = duration * 0.7
     cta_start = max(duration - 4, duration * 0.8)
 
-    # Fast copy — no re-encoding to avoid timeout on Railway
-    cmd = [ffmpeg, "-y", "-i", video_path, "-c", "copy", "-movflags", "+faststart", output_path]
-    print(f"FFmpeg copy cmd running...")
-    result = subprocess.run(cmd, capture_output=True, timeout=60)
-    print(f"FFmpeg return code: {result.returncode}")
-
-    if result.returncode != 0:
-        err = result.stderr.decode('utf-8', errors='replace')
-        print(f"FFmpeg error: {err[-300:]}")
-        # Fallback: plain copy
-        copy_cmd = [ffmpeg, "-y", "-i", video_path, "-c", "copy", output_path]
-        subprocess.run(copy_cmd, capture_output=True, timeout=30)
-
+    # Direct file copy — no ffmpeg needed, avoids timeout on Railway
+    import shutil
+    shutil.copy2(video_path, output_path)
+    print(f"Video copied directly")
     return os.path.exists(output_path) and os.path.getsize(output_path) > 0
 
 
