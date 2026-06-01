@@ -69,6 +69,9 @@ UPLOAD_FOLDER = tempfile.gettempdir()
 _trends_cache = {}
 _trends_loaded_at = None
 
+# Diagnostics for last enhance call
+_last_ffmpeg_diag = ""
+
 
 def github_get_file(path):
     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}"
@@ -359,7 +362,12 @@ def analyze():
 
 
 def download_arabic_font():
-    """Download Arabic font for video text overlays."""
+    """Return path to bundled font, or download as fallback."""
+    # Prefer the font bundled in the repo (reliable on Railway)
+    bundled = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "Cairo-Bold.ttf")
+    if os.path.exists(bundled):
+        return bundled
+
     font_path = os.path.join(tempfile.gettempdir(), "arabic_font.ttf")
     if os.path.exists(font_path):
         return font_path
@@ -427,6 +435,10 @@ def enhance_video(video_path, enhancements, output_path, duration=30):
             f":enable='gte(t,{cta_start:.1f})'"
         )
 
+    global _last_ffmpeg_diag
+    _last_ffmpeg_diag = f"font={os.path.basename(font_path) if font_path else 'NONE'};filters={len(filters)}"
+
+    overlay_ok = False
     if filters:
         vf = ",".join(filters)
         cmd = [ffmpeg, "-y", "-i", video_path, "-vf", vf,
@@ -435,8 +447,15 @@ def enhance_video(video_path, enhancements, output_path, duration=30):
         print(f"Applying text overlays...")
         result = subprocess.run(cmd, capture_output=True, timeout=90)
         print(f"FFmpeg return code: {result.returncode}")
-        if result.returncode != 0:
-            print(f"FFmpeg error: {result.stderr.decode(errors='replace')[-300:]}")
+        overlay_ok = result.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 0
+        if not overlay_ok:
+            err = result.stderr.decode(errors='replace')
+            print(f"FFmpeg error: {err[-300:]}")
+            # keep last error line for diagnostics
+            errline = next((l for l in reversed(err.split('\n')) if l.strip()), "")
+            _last_ffmpeg_diag += f";err={clean_text(errline, 120)}"
+
+    _last_ffmpeg_diag += f";overlay={'yes' if overlay_ok else 'no'}"
 
     if not (os.path.exists(output_path) and os.path.getsize(output_path) > 0):
         import shutil
@@ -559,6 +578,7 @@ def enhance():
             response.headers['X-Engage-Text'] = clean_text(enhancements.get('engagement_text', ''), 80)
             response.headers['X-CTA-Text'] = clean_text(enhancements.get('cta_text', ''), 80)
             response.headers['X-Algorithm-Boost'] = clean_text(enhancements.get('algorithm_score_boost', ''), 80)
+            response.headers['X-Diag'] = clean_text(_last_ffmpeg_diag, 200)
             return response
         else:
             return jsonify({"error": "فشل تحسين الفيديو"}), 500
