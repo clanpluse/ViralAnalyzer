@@ -26,7 +26,6 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.effect.OverlayEffect
 import androidx.media3.effect.OverlaySettings
-import androidx.media3.effect.StaticOverlaySettings
 import androidx.media3.effect.TextOverlay
 import androidx.media3.effect.TextureOverlay
 import androidx.media3.transformer.Composition
@@ -572,7 +571,7 @@ class WindowedTextOverlay(
 
     override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings {
         val visible = presentationTimeUs in startUs..endUs
-        return StaticOverlaySettings.Builder()
+        return OverlaySettings.Builder()
             .setAlphaScale(if (visible) 1f else 0f)
             .setBackgroundFrameAnchor(0f, topAnchorY)
             .setOverlayFrameAnchor(0f, 0f)
