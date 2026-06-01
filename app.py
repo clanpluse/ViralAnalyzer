@@ -360,7 +360,7 @@ def analyze():
 
 def download_arabic_font():
     """Download Arabic font for video text overlays."""
-    font_path = "/tmp/arabic_font.ttf"
+    font_path = os.path.join(tempfile.gettempdir(), "arabic_font.ttf")
     if os.path.exists(font_path):
         return font_path
     try:
@@ -393,37 +393,36 @@ def enhance_video(video_path, enhancements, output_path, duration=30):
     """Apply algorithm-based text overlays and visual enhancements."""
     ffmpeg = get_ffmpeg_path()
 
-    # Calculate timing based on video duration
-    hook_end = min(3.0, duration * 0.15)
-    engage_start = duration * 0.4
-    engage_end = duration * 0.7
-    cta_start = max(duration - 4, duration * 0.8)
-
     hook_text = clean_text(enhancements.get("hook_text", ""), 40)
     engage_text = clean_text(enhancements.get("engagement_text", ""), 40)
     cta_text = clean_text(enhancements.get("cta_text", ""), 40)
 
+    # Calculate timing based on video duration
     hook_end = min(3.0, duration * 0.2) if duration > 0 else 3.0
     engage_start = duration * 0.4 if duration > 0 else 8.0
     engage_end = duration * 0.7 if duration > 0 else 14.0
     cta_start = (duration - 3) if duration > 3 else max(duration * 0.8, 0)
 
+    # drawtext needs an explicit font file — no system fonts on Railway
+    font_path = download_arabic_font()
+    font_arg = f":fontfile='{font_path}'" if font_path else ""
+
     filters = []
     if hook_text:
         filters.append(
-            f"drawtext=text='{hook_text}':x=(w-text_w)/2:y=h*0.1"
+            f"drawtext=text='{hook_text}'{font_arg}:x=(w-text_w)/2:y=h*0.1"
             f":fontsize=28:fontcolor=white:box=1:boxcolor=black@0.6:boxborderw=6"
             f":enable='between(t,0,{hook_end:.1f})'"
         )
     if engage_text:
         filters.append(
-            f"drawtext=text='{engage_text}':x=(w-text_w)/2:y=h*0.85"
+            f"drawtext=text='{engage_text}'{font_arg}:x=(w-text_w)/2:y=h*0.85"
             f":fontsize=24:fontcolor=yellow:box=1:boxcolor=black@0.6:boxborderw=5"
             f":enable='between(t,{engage_start:.1f},{engage_end:.1f})'"
         )
     if cta_text:
         filters.append(
-            f"drawtext=text='{cta_text}':x=(w-text_w)/2:y=h*0.1"
+            f"drawtext=text='{cta_text}'{font_arg}:x=(w-text_w)/2:y=h*0.1"
             f":fontsize=26:fontcolor=white:box=1:boxcolor=black@0.7:boxborderw=6"
             f":enable='gte(t,{cta_start:.1f})'"
         )
