@@ -13,7 +13,11 @@ from anthropic import Anthropic
 from datetime import datetime
 
 app = Flask(__name__)
-client = Anthropic(api_key=os.environ.get('ANTHROPIC_API_KEY'))
+client = Anthropic(
+    api_key=os.environ.get('ANTHROPIC_API_KEY'),
+    timeout=60.0,
+    max_retries=3
+)
 
 # Add ffmpeg to PATH automatically
 try:
@@ -346,6 +350,33 @@ def health():
         "status": "ok",
         "trends_loaded": bool(trend_data),
         "trends_updated": trend_data.get('last_updated', 'N/A')[:10] if trend_data else 'N/A'
+    })
+
+
+@app.route('/test-claude', methods=['GET'])
+def test_claude():
+    """Test Anthropic API connectivity."""
+    try:
+        import httpx
+        # Test basic connectivity
+        r = httpx.get("https://api.anthropic.com", timeout=10)
+        connectivity = f"HTTP {r.status_code}"
+    except Exception as e:
+        connectivity = f"Failed: {e}"
+
+    try:
+        msg = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=10,
+            messages=[{"role": "user", "content": "hi"}]
+        )
+        claude_status = "✅ Working"
+    except Exception as e:
+        claude_status = f"❌ {str(e)[:200]}"
+
+    return jsonify({
+        "anthropic_connectivity": connectivity,
+        "claude_api": claude_status
     })
 
 
