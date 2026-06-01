@@ -13,7 +13,7 @@ from anthropic import Anthropic
 from datetime import datetime
 
 app = Flask(__name__)
-ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY')
+ANTHROPIC_API_KEY = (os.environ.get('ANTHROPIC_API_KEY') or '').strip()
 
 
 def call_claude(messages_content, max_tokens=1500):
