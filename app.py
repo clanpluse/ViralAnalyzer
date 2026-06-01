@@ -436,7 +436,7 @@ def enhance_video(video_path, enhancements, output_path, duration=30):
         )
 
     global _last_ffmpeg_diag
-    _last_ffmpeg_diag = f"font={os.path.basename(font_path) if font_path else 'NONE'};filters={len(filters)}"
+    _last_ffmpeg_diag = f"ffmpeg={ffmpeg};font={font_path or 'NONE'};filters={len(filters)}"
 
     overlay_ok = False
     if filters:
@@ -450,15 +450,8 @@ def enhance_video(video_path, enhancements, output_path, duration=30):
         overlay_ok = result.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 0
         if not overlay_ok:
             err = result.stderr.decode(errors='replace')
-            print(f"FFmpeg error: {err[-500:]}")
-            # Pick the most informative error line (filter/font init), not the generic tail
-            keywords = ('fontconfig', 'drawtext', 'Cannot', 'Unable', 'initializing',
-                        'No such', 'Invalid', 'could not', 'font')
-            informative = [l.strip() for l in err.split('\n')
-                           if l.strip() and any(k.lower() in l.lower() for k in keywords)
-                           and 'opening output' not in l.lower()]
-            errline = informative[0] if informative else err.strip().split('\n')[-1]
-            _last_ffmpeg_diag += f";err={clean_text(errline, 140)}"
+            print(f"FFmpeg error: {err[-700:]}")
+            _last_ffmpeg_diag += f";err={clean_text(err[-220:], 220)}"
 
     _last_ffmpeg_diag += f";overlay={'yes' if overlay_ok else 'no'}"
 
@@ -627,6 +620,7 @@ def health():
     trend_data = load_trend_data("عام")
     return jsonify({
         "status": "ok",
+        "version": "diag-2",
         "trends_loaded": bool(trend_data),
         "trends_updated": trend_data.get('last_updated', 'N/A')[:10] if trend_data else 'N/A'
     })
