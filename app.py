@@ -224,6 +224,23 @@ def get_video_duration(video_path):
             return 0
 
 
+_whisper_model = None
+
+
+def _get_whisper_model():
+    """Load the whisper model once and reuse it (reloading per request spikes memory)."""
+    global _whisper_model
+    if _whisper_model is None:
+        try:
+            import whisper
+            _whisper_model = whisper.load_model("tiny")
+            print("Whisper model loaded (cached)")
+        except Exception as e:
+            print(f"Whisper load failed: {e}")
+            return None
+    return _whisper_model
+
+
 def transcribe_audio(video_path):
     """Extract and transcribe audio from video."""
     audio_path = video_path + "_audio.mp3"
@@ -240,8 +257,9 @@ def transcribe_audio(video_path):
         if not os.path.exists(audio_path) or os.path.getsize(audio_path) == 0:
             return None
 
-        import whisper
-        model = whisper.load_model("tiny")
+        model = _get_whisper_model()
+        if model is None:
+            return None
         result = model.transcribe(audio_path, fp16=False, language="ar")
         text = result.get("text", "").strip()
         print(f"Transcript: {text[:50]}...")
@@ -515,12 +533,16 @@ def enhance_video(video_path, enhancements, output_path, duration=30):
 
     overlay_ok = False
     if filters:
-        vf = ",".join(filters)
+        # Cap resolution to keep encode fast + low-memory on Railway (avoids 502/OOM).
+        # Scale longest side to <=1280, preserve aspect, keep even dimensions.
+        scale = "scale='if(gt(iw,ih),min(1280,iw),-2)':'if(gt(iw,ih),-2,min(1280,ih))'"
+        vf = scale + "," + ",".join(filters)
         cmd = [ffmpeg, "-y", "-i", video_path, "-vf", vf,
                "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28",
+               "-threads", "2", "-max_muxing_queue_size", "1024",
                "-c:a", "copy", output_path]
         print(f"Applying text overlays...")
-        result = subprocess.run(cmd, capture_output=True, timeout=90)
+        result = subprocess.run(cmd, capture_output=True, timeout=110)
         print(f"FFmpeg return code: {result.returncode}")
         overlay_ok = result.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 0
         if not overlay_ok:
@@ -745,7 +767,7 @@ def health():
     trend_data = load_trend_data("عام")
     return jsonify({
         "status": "ok",
-        "version": "docker-2",
+        "version": "mem-1",
         "ffmpeg": _FFMPEG_BIN,
         "trends_loaded": bool(trend_data),
         "trends_updated": trend_data.get('last_updated', 'N/A')[:10] if trend_data else 'N/A'
