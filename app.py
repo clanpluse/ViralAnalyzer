@@ -450,10 +450,15 @@ def enhance_video(video_path, enhancements, output_path, duration=30):
         overlay_ok = result.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 0
         if not overlay_ok:
             err = result.stderr.decode(errors='replace')
-            print(f"FFmpeg error: {err[-300:]}")
-            # keep last error line for diagnostics
-            errline = next((l for l in reversed(err.split('\n')) if l.strip()), "")
-            _last_ffmpeg_diag += f";err={clean_text(errline, 120)}"
+            print(f"FFmpeg error: {err[-500:]}")
+            # Pick the most informative error line (filter/font init), not the generic tail
+            keywords = ('fontconfig', 'drawtext', 'Cannot', 'Unable', 'initializing',
+                        'No such', 'Invalid', 'could not', 'font')
+            informative = [l.strip() for l in err.split('\n')
+                           if l.strip() and any(k.lower() in l.lower() for k in keywords)
+                           and 'opening output' not in l.lower()]
+            errline = informative[0] if informative else err.strip().split('\n')[-1]
+            _last_ffmpeg_diag += f";err={clean_text(errline, 140)}"
 
     _last_ffmpeg_diag += f";overlay={'yes' if overlay_ok else 'no'}"
 
