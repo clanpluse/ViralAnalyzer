@@ -890,6 +890,205 @@ def reference_result(job_id):
     return jsonify({"status": "done", "profile": job.get("profile", {})})
 
 
+# ---------------------------------------------------------------------------
+# Sound effects: mix free, ffmpeg-synthesized SFX (pop/ding/whoosh) into the
+# video's AUDIO only (-c:v copy => fast, light, no re-encode). Claude decides
+# which effect fires when, based on duration + the text overlay timings.
+# ---------------------------------------------------------------------------
+
+# Each SFX is synthesized on the fly by ffmpeg (no asset files, fully free).
+_SFX_SYNTH = {
+    "pop": ("sine=frequency=520:duration=0.09",
+            "afade=t=out:st=0.02:d=0.07,volume=0.7"),
+    "ding": ("sine=frequency=1318:duration=0.4",
+             "afade=t=out:st=0.05:d=0.35,volume=0.6"),
+    "whoosh": ("anoisesrc=d=0.4:color=pink:amplitude=0.5",
+               "highpass=f=300,lowpass=f=3500,afade=t=in:d=0.2,afade=t=out:st=0.25:d=0.15,volume=0.5"),
+}
+
+
+def _synth_sfx(kind, out_path):
+    src, af = _SFX_SYNTH.get(kind, _SFX_SYNTH["pop"])
+    r = subprocess.run([get_ffmpeg_path(), "-y", "-f", "lavfi", "-i", src,
+                        "-af", af, "-ar", "44100", "-ac", "2", out_path],
+                       capture_output=True, timeout=30)
+    return r.returncode == 0 and os.path.exists(out_path)
+
+
+def _has_audio(video_path):
+    try:
+        r = subprocess.run([get_ffprobe_path(), "-v", "quiet", "-select_streams", "a",
+                            "-show_entries", "stream=index", "-of", "csv=p=0", video_path],
+                           capture_output=True, text=True, timeout=15)
+        return bool(r.stdout.strip())
+    except Exception:
+        return False
+
+
+def generate_sfx_cues(niche, duration, overlay_times):
+    """Ask Claude to choose SFX (pop/ding/whoosh) + timings for this video."""
+    prompt = f"""أنت مهندس صوت لفيديوهات TikTok. اختر مؤثرات صوتية (ليست موسيقى) تناسب فيديو
+في مجال "{niche}" مدته {duration} ثانية. أوقات ظهور النصوص (ثانية): {overlay_times}
+
+المؤثرات المتاحة فقط: "pop" (نقرة خفيفة عند ظهور نص)، "ding" (تنبيه لطيف للحظة مهمة)،
+"whoosh" (انتقال/حركة). ضع مؤثراً عند ظهور النصوص وعند الانتقالات المهمة. لا تُفرط (4-8 مؤثرات).
+أعد JSON فقط:
+{{"cues": [{{"type": "pop", "time_sec": 0.0}}, {{"type": "whoosh", "time_sec": 2.5}}]}}"""
+    resp = call_claude(prompt, max_tokens=500)
+    cues = []
+    if resp:
+        try:
+            t = resp.strip()
+            if "```" in t:
+                t = t.split("```")[1]
+                if t.startswith("json"):
+                    t = t[4:]
+            s, e = t.find("{"), t.rfind("}")
+            if s != -1:
+                t = t[s:e + 1]
+            cues = json.loads(t).get("cues", [])
+        except Exception:
+            cues = []
+    # Fallback: a pop at each overlay time
+    if not cues and overlay_times:
+        cues = [{"type": "pop", "time_sec": ot} for ot in overlay_times]
+    # Validate
+    clean = []
+    for c in cues[:8]:
+        kind = c.get("type")
+        if kind not in _SFX_SYNTH:
+            continue
+        try:
+            ts = max(0.0, min(float(duration) - 0.05, float(c.get("time_sec", 0))))
+        except Exception:
+            continue
+        clean.append({"type": kind, "time_sec": round(ts, 2)})
+    return clean
+
+
+def mix_sfx_into_video(video_path, cues, output_path):
+    """Mix synthesized SFX into the audio at the given timestamps; copy video stream."""
+    ffmpeg = get_ffmpeg_path()
+    tmp_dir = tempfile.mkdtemp()
+    # synthesize each distinct sfx type once
+    sfx_files = {}
+    for kind in {c["type"] for c in cues}:
+        p = os.path.join(tmp_dir, f"sfx_{kind}.wav")
+        if _synth_sfx(kind, p):
+            sfx_files[kind] = p
+
+    inputs = ["-i", video_path]
+    filters = []
+    mix_labels = []
+    has_aud = _has_audio(video_path)
+
+    idx = 1  # input index (0 is the video)
+    for i, c in enumerate(cues):
+        f = sfx_files.get(c["type"])
+        if not f:
+            continue
+        inputs += ["-i", f]
+        ms = int(c["time_sec"] * 1000)
+        filters.append(f"[{idx}:a]adelay={ms}|{ms}[s{i}]")
+        mix_labels.append(f"[s{i}]")
+        idx += 1
+
+    if not mix_labels:
+        return False
+
+    base = "[0:a]" if has_aud else ""
+    n = len(mix_labels) + (1 if has_aud else 0)
+    fc = ";".join(filters) + ";" + base + "".join(mix_labels) + \
+         f"amix=inputs={n}:duration=first:normalize=0[aout]"
+
+    cmd = [ffmpeg, "-y"] + inputs + ["-filter_complex", fc,
+           "-map", "0:v", "-map", "[aout]",
+           "-c:v", "copy", "-c:a", "aac", "-b:a", "128k", output_path]
+    r = subprocess.run(cmd, capture_output=True, timeout=120)
+    if r.returncode != 0:
+        print("sfx mix error:", r.stderr.decode(errors="replace")[-400:])
+    return r.returncode == 0 and os.path.exists(output_path) and os.path.getsize(output_path) > 0
+
+
+_audio_jobs = {}
+_audio_jobs_lock = threading.Lock()
+
+
+def _run_audio_job(job_id, video_path, niche, duration, overlay_times):
+    out = video_path + "_sfx.mp4"
+    try:
+        cues = generate_sfx_cues(niche, duration, overlay_times)
+        if not cues:
+            with _audio_jobs_lock:
+                _audio_jobs[job_id] = {"status": "error", "error": "لا توجد مؤثرات"}
+            return
+        ok = mix_sfx_into_video(video_path, cues, out)
+        with _audio_jobs_lock:
+            _audio_jobs[job_id] = ({"status": "done", "output_path": out, "cues": cues}
+                                   if ok else {"status": "error", "error": "فشل مزج الصوت"})
+    except Exception as e:
+        with _audio_jobs_lock:
+            _audio_jobs[job_id] = {"status": "error", "error": str(e)[:200]}
+    finally:
+        if os.path.exists(video_path):
+            try:
+                os.unlink(video_path)
+            except Exception:
+                pass
+
+
+@app.route('/enhance-audio', methods=['POST'])
+def enhance_audio():
+    """Async: add Claude-chosen sound effects to the audio of an uploaded video."""
+    if 'video' not in request.files:
+        return jsonify({"error": "لم يتم إرسال فيديو"}), 400
+    niche = request.form.get('niche', 'عام')
+    try:
+        duration = float(request.form.get('duration', '0') or 0)
+    except Exception:
+        duration = 0
+    overlay_times = []
+    try:
+        overlay_times = [round(float(x), 2) for x in
+                         json.loads(request.form.get('overlay_times', '[]'))][:8]
+    except Exception:
+        pass
+
+    tmp = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False, dir=UPLOAD_FOLDER)
+    vp = tmp.name
+    tmp.close()
+    request.files['video'].save(vp)
+
+    if not duration:
+        duration = get_video_duration(vp) or 15
+
+    import uuid
+    job_id = uuid.uuid4().hex
+    with _audio_jobs_lock:
+        _audio_jobs[job_id] = {"status": "processing"}
+    threading.Thread(target=_run_audio_job,
+                     args=(job_id, vp, niche, duration, overlay_times), daemon=True).start()
+    return jsonify({"job_id": job_id, "status": "processing"}), 200
+
+
+@app.route('/audio-result/<job_id>', methods=['GET'])
+def audio_result(job_id):
+    with _audio_jobs_lock:
+        job = _audio_jobs.get(job_id)
+    if not job:
+        return jsonify({"status": "not_found"}), 404
+    if job["status"] == "processing":
+        return jsonify({"status": "processing"}), 202
+    if job["status"] == "error":
+        return jsonify({"status": "error", "error": job.get("error", "")}), 500
+    out = job["output_path"]
+    if not (out and os.path.exists(out)):
+        return jsonify({"status": "error", "error": "الملف غير موجود"}), 500
+    resp = send_file(out, mimetype='video/mp4', as_attachment=True, download_name='sfx_video.mp4')
+    resp.headers['X-SFX-Count'] = str(len(job.get("cues", [])))
+    return resp
+
+
 @app.route('/enhance', methods=['POST'])
 def enhance():
     """Return algorithm-based text suggestions as JSON. The video is now rendered
@@ -1001,7 +1200,7 @@ def health():
     trend_data = load_trend_data("عام")
     return jsonify({
         "status": "ok",
-        "version": "ar-font-1",
+        "version": "sfx-1",
         "ffmpeg": _FFMPEG_BIN,
         "apify_configured": bool((os.environ.get('APIFY_TOKEN') or '').strip()),
         "github_configured": bool((os.environ.get('GITHUB_TOKEN') or '').strip()),

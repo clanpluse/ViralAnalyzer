@@ -283,9 +283,26 @@ class MainActivity : AppCompatActivity() {
                 val outFile = File(cacheDir, "viral_enhanced_${System.currentTimeMillis()}.mp4")
                 renderOverlaysOnDevice(uri, segments, durationSec, outFile)
 
-                // 3) Save to gallery
-                saveVideoFileToGallery(outFile)
-                outFile.delete()
+                // 3) Add sound effects on the server (audio-only mix, fast)
+                var finalFile = outFile
+                try {
+                    withContext(Dispatchers.Main) {
+                        tvStatus.text = "🔊 جارٍ إضافة المؤثرات الصوتية..."
+                    }
+                    val overlayTimes = JSONArray()
+                    for (s in segments) overlayTimes.put((s.startPct * durationSec).toDouble())
+                    val sfxFile = addSoundEffects(outFile, niche, durationSec, overlayTimes.toString())
+                    if (sfxFile != null) {
+                        finalFile = sfxFile
+                        outFile.delete()
+                    }
+                } catch (_: Exception) {
+                    // SFX is a bonus; if it fails, keep the text-only video
+                }
+
+                // 4) Save to gallery
+                saveVideoFileToGallery(finalFile)
+                finalFile.delete()
 
                 withContext(Dispatchers.Main) {
                     progressBar.visibility = View.GONE
@@ -479,6 +496,51 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread {
             transformer.start(editedItem, outFile.absolutePath)
         }
+    }
+
+    /** Upload the (text-rendered) video and get it back with sound effects mixed in. */
+    private suspend fun addSoundEffects(
+        src: File, niche: String, durationSec: Int, overlayTimesJson: String
+    ): File? {
+        val reqBody = MultipartBody.Builder()
+            .setType(MultipartBody.FORM)
+            .addFormDataPart("video", "v.mp4", src.asRequestBody("video/mp4".toMediaType()))
+            .addFormDataPart("niche", niche)
+            .addFormDataPart("duration", durationSec.toString())
+            .addFormDataPart("overlay_times", overlayTimesJson)
+            .build()
+        val submit = client.newCall(
+            Request.Builder().url("$SERVER_URL/enhance-audio").post(reqBody).build()
+        ).execute()
+        val sBody = submit.body?.string() ?: return null
+        if (!submit.isSuccessful) return null
+        val jobId = JSONObject(sBody).optString("job_id", "")
+        if (jobId.isEmpty()) return null
+
+        var attempt = 0
+        while (attempt < 60) {
+            attempt++
+            val pr = client.newCall(
+                Request.Builder().url("$SERVER_URL/audio-result/$jobId").get().build()
+            ).execute()
+            when (pr.code) {
+                200 -> {
+                    val bytes = pr.body?.bytes() ?: return null
+                    val out = File(cacheDir, "viral_sfx_${System.currentTimeMillis()}.mp4")
+                    out.writeBytes(bytes)
+                    return out
+                }
+                202 -> {
+                    pr.close()
+                    withContext(Dispatchers.Main) {
+                        tvStatus.text = "🔊 جارٍ إضافة المؤثرات... (${attempt * 2} ثانية)"
+                    }
+                    kotlinx.coroutines.delay(2000); continue
+                }
+                else -> return null
+            }
+        }
+        return null
     }
 
     private fun saveVideoFileToGallery(src: File) {

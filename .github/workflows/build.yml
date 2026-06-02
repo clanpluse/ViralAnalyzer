@@ -2,7 +2,7 @@ name: Build APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, feature-sound-effects ]
   workflow_dispatch:
 
 permissions:
@@ -49,8 +49,8 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.0.${{ github.run_number }}
-          name: "ViralAnalyzer v1.0.${{ github.run_number }}"
+          tag_name: ${{ github.ref_name == 'main' && format('v1.0.{0}', github.run_number) || format('sfx-1.0.{0}', github.run_number) }}
+          name: ${{ github.ref_name == 'main' && format('ViralAnalyzer v1.0.{0}', github.run_number) || format('ViralAnalyzer (SFX beta) {0}', github.run_number) }}
           files: app/build/outputs/apk/debug/app-debug.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
