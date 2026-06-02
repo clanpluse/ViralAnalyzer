@@ -1,58 +1,51 @@
 {
   "تصاميم منزلية وديكور": {
-    "why_viral": "الفيديو يجمع بين عنصر الفضول (منتجات أمازون بأسعار غير متوقعة) وأسلوب حياة بصري جذاب مع ألوان دافئة وديكور عصري. النصوص الودية والعفوية ('Cute Sh*t', 'cheaper than I expected tbh') تخلق شعوراً بالثقة والتوصيات الحقيقية من صديقة.",
-    "hook_style": "اللقطة الأولى تعرض غرفة معيشة فاخرة مضاءة بشكل احترافي مع سماء زرقاء من النوافذ العلوية، ممّا يشدّ الانتباه فوراً. النص الكبير الأصفر 'Cute Sh*t Around My House' يظهر بثقة عالية وجرأة في الكلام غير الرسمي.",
+    "why_viral": "الفيديو يجمع بين عنصرين قويين: جماليات فاخرة بألوان محدودة (أسود وذهبي وعاجي) تثير الرغبة، مع إيقاع سريع وموسيقى جذابة تجعل المشاهد لا يستطيع التوقف. العنوان يستخدم emoji وكلمات انفعالية (Obsessed) تشجع على المشاركة والتعليق.",
+    "hook_style": "اللقطة الأولى تظهر غرفة معيشة فاخرة مضاءة بشكل احترافي مع أريكة سوداء جريئة وثريا ذهبية براقة - صورة جذابة بصرياً في الثانية الأولى تتطلب المشاهدة كاملة.",
     "onscreen_texts": [
-      "Cute Sh*t Around My House",
-      "AMAZON EDITION",
-      "Mid Century Modern Bookshelf",
-      "Togo Style Chair",
-      "Link In Bio"
+      "This Black & Gold Living Room Will Make You Obsessed 😍✨",
+      "That gold chandelier + black velvet sofa combo is EVERYTHING 🖤✨",
+      "Full luxury open-plan living room tour in 4K",
+      "black, ivory & champagne gold vibes only",
+      "Would you live here? 👇"
     ],
-    "text_style": "نصوص بحجم كبير وألوان أصفر نيون براق على خلفيات محايدة. النبرة عفوية وودية جداً (استخدام كلمات دارجة مثل 'Sh*t'). توضع النصوص في الأعلى والأسفل بوضوح كامل دون حجب المنتج.",
-    "pacing": "إيقاع سريع: كل لقطة تستغرق 5-8 ثوان فقط. انتقالات سلسة بين الغرفة الكاملة ثم تكبير على كل منتج مفرد. موسيقى خفيفة واسترخاء بصري متناوب (لقطات عريضة ثم قريبة جداً).",
-    "caption_formula": "[وصف عفوي ودود] + [كلمة تثير الفضول: Cute/Amazing/Obsessed] + [المنصة: Amazon Edition] + [تحفيز الحركة: Links in Bio/Storefront] + [الهاشتاغات ذات الصلة الموضوعية: #homedecor #interiorinspo #mcm]",
+    "text_style": "نصوص قصيرة وقوية بنبرة انفعالية وحماسية، استخدام emojis بكثرة (🖤✨😍)، موضعة في أعلى وأسفل الشاشة بخط أبيض سميك على خلفية شفافة، كل نص يظهر لمدة 1-2 ثانية فقط مما يزيد الإيقاع السريع.",
+    "pacing": "إيقاع متسارع جداً: تتغير اللقطات كل 1.5-2 ثانية، كل منها يظهر زاوية مختلفة من الغرفة، الانتقالات حادة وسريعة دون فترات انتظار، الموسيقى مرتفعة وحماسية طوال الفيديو مما يخلق توتراً بصرياً مستمراً.",
+    "caption_formula": "استفتاح انفعالي + emoji جاذب، ثم تفصيل العنصر الرئيسي (الثريا والأريكة)، ثم دعوة للفعل (Would you live here)، مع hashtags محددة (#LuxuryLivingRoom #BlackAndGold) وعبارة Follow للعودة.",
     "overlay_template": [
       {
-        "purpose": "Hook عنوان رئيسي",
-        "position": "center-top",
+        "purpose": "Hook رئيسي",
+        "position": "top-center",
         "start_pct": 0.0,
-        "end_pct": 0.2,
-        "style_note": "نص أصفر نيون غامق (Outfit/Cute Sh*t)، حجم +80، خط عريض، ظل أسود للوضوح"
+        "end_pct": 0.25,
+        "style_note": "نص عريض قوي مع emoji، يجب أن يحتوي على كلمة جذب (Obsessed, Will Make, EVERYTHING) ولون متناقض مع الخلفية"
       },
       {
-        "purpose": "معرّف المصدر",
-        "position": "center-top",
-        "start_pct": 0.05,
-        "end_pct": 0.15,
-        "style_note": "نص أصفر فاتح (AMAZON EDITION)، حجم +50، كورسيفي مائل"
-      },
-      {
-        "purpose": "اسم المنتج",
-        "position": "center",
+        "purpose": "تفصيل المميزات الرئيسية",
+        "position": "top-center",
         "start_pct": 0.25,
         "end_pct": 0.65,
-        "style_note": "نص أصفر فاتح + أبيض متبادل، حجم +60، موضع متغير حسب اللقطة"
+        "style_note": "نصوص قصيرة جداً (عبارات 3-5 كلمات)، emoji متعلقة بالعنصر، موضعة على كل لقطة جديدة"
       },
       {
-        "purpose": "عبارة CTA",
+        "purpose": "دعوة تفاعل (CTA)",
         "position": "bottom-center",
-        "start_pct": 0.85,
+        "start_pct": 0.75,
         "end_pct": 1.0,
-        "style_note": "نص أصفر فاتح (Link In Bio)، حجم +45، بسيط وواضح"
+        "style_note": "سؤال مباشر (Would you...?) مع emoji، شجع على التعليق أو المشاركة"
       }
     ],
-    "summary": "الوصفة الفائزة: (1) ابدأ بغرفة/زاوية مضاءة بشكل احترافي تثير الإعجاب فوراً. (2) استخدم عنوان عفوي وجريء يشبه توصية صديقة حقيقية (تجنب الرسمية). (3) عرّف كل منتج بلقطة مقربة مع اسمه واضح على الشاشة بـ 5-8 ثوانٍ فقط. (4) اختر ألوان نيون متباينة (أصفر، أزرق، أخضر) على خلفيات محايدة. (5) أنهِ بـ CTA واضح مثل 'Link In Bio' أو 'Storefront'. (6) أضف معلومات ثانية (السعر أرخص، الجودة عالية) لتعزيز المصداقية.",
-    "source_url": "https://www.tiktok.com/@natalieequinniee/video/7636083236229106974",
+    "summary": "وصفة النجاح: ابدأ بـ hook انفعالي قوي في أول ثانية (image + نص حماسي)، استخدم لقطات متنوعة بإيقاع سريع جداً (تغيير كل 1.5 ثانية)، أضف نصوص قصيرة جداً مع emojis على كل لقطة، ركز على تفاصيل 'premium' (الخامات الفاخرة والألوان المحدودة)، انتهِ بـ CTA واضح يشجع التفاعل. المفتاح هو الجمع بين الجمال البصري والسرعة والإيقاع الشامل.",
+    "source_url": "https://vt.tiktok.com/ZSxwAR831/",
     "source_meta": {
-      "title": "Cute Sh*t Around My House: Amazon Edition🪩💫🏡 🔗’s in my Storefront!!! & they are cheaper than I expected tbh !!!!!!  #homedecor #interiorinspo #mcm #colorfulhome #dopaminedecor | Amazon home decor finds, ruffle bedding, mid century modern bookshelf, Togo style leather chair, rice paper lamp, home decor ideas, affordable home decor finds",
-      "play_count": 150068,
-      "digg_count": 14404,
-      "comment_count": 42,
-      "share_count": 730,
-      "duration": 35,
-      "author": "natalieequinniee"
+      "title": "This Black & Gold Living Room Will Make You Obsessed 😍✨ | Sweet Home That gold chandelier + black velvet sofa combo is EVERYTHING 🖤✨ Full luxury open-plan living room tour in 4K — black, ivory & champagne gold vibes only. Would you live here? 👇 Follow for daily luxury home inspiration! #SweetHome #LuxuryLivingRoom #BlackAndGold #HomeDecor #InteriorDesign ",
+      "play_count": 3727915,
+      "digg_count": 163183,
+      "comment_count": 867,
+      "share_count": 16321,
+      "duration": 16,
+      "author": "sweethomelife1"
     },
-    "analyzed_at": "2026-06-02T14:28:58.780204"
+    "analyzed_at": "2026-06-02T15:04:59.870904"
   }
 }
