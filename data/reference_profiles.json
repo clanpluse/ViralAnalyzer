@@ -1,51 +1,55 @@
 {
   "تصاميم منزلية وديكور": {
-    "why_viral": "الفيديو يجمع بين عنصرين قويين: جماليات فاخرة بألوان محدودة (أسود وذهبي وعاجي) تثير الرغبة، مع إيقاع سريع وموسيقى جذابة تجعل المشاهد لا يستطيع التوقف. العنوان يستخدم emoji وكلمات انفعالية (Obsessed) تشجع على المشاركة والتعليق.",
-    "hook_style": "اللقطة الأولى تظهر غرفة معيشة فاخرة مضاءة بشكل احترافي مع أريكة سوداء جريئة وثريا ذهبية براقة - صورة جذابة بصرياً في الثانية الأولى تتطلب المشاهدة كاملة.",
+    "why_viral": "الفيديو يعرض تحولاً بصرياً مذهلاً من زوايا مختلفة لنفس المساحة، مما يخلق شعوراً بالاكتشاف والإعجاب المتكرر. الإضاءة الدافئة الراقية والتصميم المينيمالست الأنيق يستهدف جمهور الطبقة العليا الباحث عن الرفاهية المخصصة.",
+    "hook_style": "اللقطة الأولى تظهر زاوية جانبية للكراسي والأريكة بإضاءة ذهبية دافئة تثير الفضول - المشاهد يشعر فوراً بالرقي والهدوء، ويريد معرفة المزيد عن هذا التصميم.",
     "onscreen_texts": [
-      "This Black & Gold Living Room Will Make You Obsessed 😍✨",
-      "That gold chandelier + black velvet sofa combo is EVERYTHING 🖤✨",
-      "Full luxury open-plan living room tour in 4K",
-      "black, ivory & champagne gold vibes only",
-      "Would you live here? 👇"
+      "The living room set you've been waiting for",
+      "where comfort meets refined craftsmanship",
+      "✅ Custom-made to match your space and lifestyle",
+      "✅ Available in a wide range of colors & fabrics",
+      "✅ Made to order using high-quality materials",
+      "✅ Nationwide delivery across Egypt",
+      "✅ Professional assembly available",
+      "📩 DM us now for price & customization details",
+      "📞 01501560301"
     ],
-    "text_style": "نصوص قصيرة وقوية بنبرة انفعالية وحماسية، استخدام emojis بكثرة (🖤✨😍)، موضعة في أعلى وأسفل الشاشة بخط أبيض سميك على خلفية شفافة، كل نص يظهر لمدة 1-2 ثانية فقط مما يزيد الإيقاع السريع.",
-    "pacing": "إيقاع متسارع جداً: تتغير اللقطات كل 1.5-2 ثانية، كل منها يظهر زاوية مختلفة من الغرفة، الانتقالات حادة وسريعة دون فترات انتظار، الموسيقى مرتفعة وحماسية طوال الفيديو مما يخلق توتراً بصرياً مستمراً.",
-    "caption_formula": "استفتاح انفعالي + emoji جاذب، ثم تفصيل العنصر الرئيسي (الثريا والأريكة)، ثم دعوة للفعل (Would you live here)، مع hashtags محددة (#LuxuryLivingRoom #BlackAndGold) وعبارة Follow للعودة.",
+    "text_style": "نصوص قصيرة وموجزة تظهر تدريجياً على الشاشة بطريقة متناسقة، مع استخدام رموز إيموجي (✅، 📩، 📞) لجذب الانتباه. النبرة احترافية وحصرية مع محفزات شراء واضحة. النصوص موضوعة في الأسفل والوسط بخط أبيض واضح على خلفية شفافة.",
+    "pacing": "الإيقاع بطيء وهادئ يتماشى مع طبيعة المنتج الفاخر - كل لقطة تستغرق حوالي 1.5-2 ثانية، مع انتقالات ناعمة بين الزوايا المختلفة. لا توجد قطع حادة أو سريعة - كل شيء متدفق وأنيق يعكس جودة التصميم.",
+    "caption_formula": "[المشاعر/الطموح] + [المنتج الفاخر] + [الفائدة الرئيسية] + [نداء للعمل مع تفاصيل التواصل]. مثال: 'The living room set you've been waiting for — حيث يلتقي الراحة بالحرفية المتقنة' + قائمة المميزات + CTA.",
     "overlay_template": [
       {
-        "purpose": "Hook رئيسي",
-        "position": "top-center",
+        "purpose": "Hook/Opening",
+        "position": "center",
         "start_pct": 0.0,
-        "end_pct": 0.25,
-        "style_note": "نص عريض قوي مع emoji، يجب أن يحتوي على كلمة جذب (Obsessed, Will Make, EVERYTHING) ولون متناقض مع الخلفية"
+        "end_pct": 0.2,
+        "style_note": "نص عاطفي قوي: 'The living room set you've been waiting for' - يخاطب الرغبة والانتظار"
       },
       {
-        "purpose": "تفصيل المميزات الرئيسية",
-        "position": "top-center",
-        "start_pct": 0.25,
-        "end_pct": 0.65,
-        "style_note": "نصوص قصيرة جداً (عبارات 3-5 كلمات)، emoji متعلقة بالعنصر، موضعة على كل لقطة جديدة"
+        "purpose": "Value Proposition",
+        "position": "bottom",
+        "start_pct": 0.2,
+        "end_pct": 0.7,
+        "style_note": "قائمة بـ 4-5 نقاط مميزات مع ✅ - بسيطة وسهلة القراءة، تركز على التخصيص والجودة"
       },
       {
-        "purpose": "دعوة تفاعل (CTA)",
-        "position": "bottom-center",
-        "start_pct": 0.75,
+        "purpose": "Call-to-Action",
+        "position": "bottom",
+        "start_pct": 0.7,
         "end_pct": 1.0,
-        "style_note": "سؤال مباشر (Would you...?) مع emoji، شجع على التعليق أو المشاركة"
+        "style_note": "معلومات التواصل (DM + رقم الهاتف) بحجم واضح وملحوظ مع رموز (📩، 📞)"
       }
     ],
-    "summary": "وصفة النجاح: ابدأ بـ hook انفعالي قوي في أول ثانية (image + نص حماسي)، استخدم لقطات متنوعة بإيقاع سريع جداً (تغيير كل 1.5 ثانية)، أضف نصوص قصيرة جداً مع emojis على كل لقطة، ركز على تفاصيل 'premium' (الخامات الفاخرة والألوان المحدودة)، انتهِ بـ CTA واضح يشجع التفاعل. المفتاح هو الجمع بين الجمال البصري والسرعة والإيقاع الشامل.",
-    "source_url": "https://vt.tiktok.com/ZSxwAR831/",
+    "summary": "الوصفة الفائزة: (1) تصوير بطيء وأنيق من زوايا متعددة للمنتج الفاخر (2) إضاءة دافئة ذهبية تثير الإعجاب الفوري (3) Hook عاطفي قوي في البداية ('ما كنت تنتظره') (4) قائمة منظمة من المميزات مع ✅ (5) CTA واضح مع معلومات التواصل (6) استهداف سوق محددة (الطبقة العليا في مصر) (7) المدة القصيرة (7 ثوان) تبقي المشاهد منجذباً دون ملل - كل هذا يخلق فيديو 'يجب أن أشاركه وأريده الآن'",
+    "source_url": "https://vt.tiktok.com/ZSxwmXfoR/",
     "source_meta": {
-      "title": "This Black & Gold Living Room Will Make You Obsessed 😍✨ | Sweet Home That gold chandelier + black velvet sofa combo is EVERYTHING 🖤✨ Full luxury open-plan living room tour in 4K — black, ivory & champagne gold vibes only. Would you live here? 👇 Follow for daily luxury home inspiration! #SweetHome #LuxuryLivingRoom #BlackAndGold #HomeDecor #InteriorDesign ",
-      "play_count": 3727915,
-      "digg_count": 163183,
-      "comment_count": 867,
-      "share_count": 16321,
-      "duration": 16,
-      "author": "sweethomelife1"
+      "title": "The living room set you’ve been waiting for — where comfort meets refined craftsmanship. Designed to elevate your space with premium upholstery, balanced proportions, and timeless elegance. ✨ Custom-made to match your space and lifestyle. ✅ Available in a wide range of colors & fabrics ✅ Made to order using high-quality materials ✅ Nationwide delivery across Egypt ✅ Professional assembly available 📩 DM us now for price & customization details 📞 01501560301 #WakanFurniture #LuxuryLivingRoom #CustomLivingRoom #ModernInteriors #ElegantLiving #HighEndFurniture #LuxuryHomesEgypt #CairoLuxury #NewCairo #SheikhZayed #BespokeDesign #LivingRoomGoals #PremiumLiving",
+      "play_count": 1332492,
+      "digg_count": 23079,
+      "comment_count": 47,
+      "share_count": 8799,
+      "duration": 7,
+      "author": "wakanfurniture_"
     },
-    "analyzed_at": "2026-06-02T15:04:59.870904"
+    "analyzed_at": "2026-06-02T16:24:50.340640"
   }
 }
