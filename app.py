@@ -827,18 +827,51 @@ def load_reference_profile(niche):
         return None
 
 
+_ref_jobs = {}
+_ref_jobs_lock = threading.Lock()
+
+
+def _run_reference_job(job_id, url, niche):
+    with _ref_jobs_lock:
+        _ref_jobs[job_id] = {"status": "processing"}
+    try:
+        profile, err = analyze_reference_video(url, niche)
+        if not profile:
+            with _ref_jobs_lock:
+                _ref_jobs[job_id] = {"status": "error", "error": err or "فشل التحليل"}
+            return
+        save_reference_profile(niche, profile)
+        with _ref_jobs_lock:
+            _ref_jobs[job_id] = {"status": "done", "profile": profile}
+    except Exception as e:
+        with _ref_jobs_lock:
+            _ref_jobs[job_id] = {"status": "error", "error": str(e)[:200]}
+
+
 @app.route('/analyze-reference', methods=['POST'])
 def analyze_reference():
-    """Analyze a user-supplied viral video URL and store its winning profile."""
+    """Start async analysis of a viral video URL; poll /reference-result/<job_id>."""
     url = request.form.get('url', '').strip()
     niche = request.form.get('niche', 'عام')
     if not url:
         return jsonify({"error": "أرسل رابط الفيديو"}), 400
-    profile, err = analyze_reference_video(url, niche)
-    if not profile:
-        return jsonify({"error": err or "فشل التحليل"}), 500
-    saved = save_reference_profile(niche, profile)
-    return jsonify({"saved": saved, "profile": profile})
+    import uuid
+    job_id = uuid.uuid4().hex
+    threading.Thread(target=_run_reference_job, args=(job_id, url, niche), daemon=True).start()
+    return jsonify({"job_id": job_id, "status": "processing"}), 200
+
+
+@app.route('/reference-result/<job_id>', methods=['GET'])
+def reference_result(job_id):
+    with _ref_jobs_lock:
+        job = _ref_jobs.get(job_id)
+    if not job:
+        return jsonify({"status": "not_found"}), 404
+    if job["status"] == "processing":
+        return jsonify({"status": "processing"}), 202
+    if job["status"] == "error":
+        return jsonify({"status": "error", "error": job.get("error", "")}), 500
+    return jsonify({"status": "done", "profile": job.get("profile", {})})
 
 
 @app.route('/enhance', methods=['POST'])
@@ -952,7 +985,7 @@ def health():
     trend_data = load_trend_data("عام")
     return jsonify({
         "status": "ok",
-        "version": "reference-1",
+        "version": "reference-async-1",
         "ffmpeg": _FFMPEG_BIN,
         "apify_configured": bool((os.environ.get('APIFY_TOKEN') or '').strip()),
         "github_configured": bool((os.environ.get('GITHUB_TOKEN') or '').strip()),
