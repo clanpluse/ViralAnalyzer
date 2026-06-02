@@ -23,15 +23,16 @@ NICHES = [
     "تسويق منتجات",
 ]
 
-# Hashtags to search per niche (mix of Arabic + English to surface real trends)
+# Hashtags to search per niche. English/global tags first because the scraper
+# returns far more results for them than for Arabic tags; Arabic kept as fallback.
 NICHE_HASHTAGS = {
-    "تصاميم منزلية وديكور": ["ديكور", "homedecor", "interiordesign"],
-    "تسويق منتجات": ["تسويق", "marketing", "smallbusiness"],
-    "أزياء وموضة": ["موضة", "fashion", "ootd"],
-    "طعام ومطاعم": ["طبخ", "food", "recipe"],
-    "تقنية وإلكترونيات": ["تقنية", "tech", "gadgets"],
-    "رياضة ولياقة": ["رياضة", "fitness", "gym"],
-    "سفر وسياحة": ["سفر", "travel", "tourism"],
+    "تصاميم منزلية وديكور": ["homedecor", "interiordesign", "homedesign", "ديكور"],
+    "تسويق منتجات": ["marketing", "smallbusiness", "digitalmarketing", "تسويق"],
+    "أزياء وموضة": ["fashion", "ootd", "موضة"],
+    "طعام ومطاعم": ["food", "recipe", "طبخ"],
+    "تقنية وإلكترونيات": ["tech", "gadgets", "تقنية"],
+    "رياضة ولياقة": ["fitness", "gym", "رياضة"],
+    "سفر وسياحة": ["travel", "tourism", "سفر"],
     "عام": ["fyp", "viral", "اكسبلور"],
 }
 
@@ -148,7 +149,7 @@ def collect_viral_videos(niche):
     recent_count = 0
 
     tags = NICHE_HASHTAGS.get(niche, NICHE_HASHTAGS["عام"])
-    for tag in tags[:1]:  # one hashtag per niche keeps it fast + cheap
+    for tag in tags:  # try tags in order, stop once we have enough results
         items = apify_search_hashtag(tag, limit=25)
         for it in items:
             vid = it.get('id') or it.get('webVideoUrl')
@@ -169,6 +170,10 @@ def collect_viral_videos(niche):
                 "author": (it.get('authorMeta') or {}).get('name', ''),
                 "hashtags": [h.get('name') for h in (it.get('hashtags') or []) if h.get('name')],
             })
+        # Stop once we have enough usable results (keeps Apify cost/time low)
+        if len(all_videos) >= 15:
+            break
+        time.sleep(1)
 
     viral = [v for v in all_videos if v["views"] >= MIN_VIEWS]
     chosen = sorted(viral or all_videos, key=lambda x: x["views"], reverse=True)[:12]
