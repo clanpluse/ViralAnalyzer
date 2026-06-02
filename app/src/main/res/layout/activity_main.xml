@@ -47,6 +47,59 @@
             android:layout_height="48dp"
             android:layout_marginBottom="16dp"/>
 
+        <!-- Reference (trend) video learning -->
+        <androidx.cardview.widget.CardView
+            xmlns:app="http://schemas.android.com/apk/res-auto"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardCornerRadius="12dp"
+            app:cardElevation="2dp"
+            android:layout_marginBottom="16dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="📈 تعلّم من فيديو رائج (اختياري)"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:textColor="#333333"
+                    android:layout_marginBottom="2dp"/>
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="الصق رابط فيديو TikTok ناجح ليتعلّم التطبيق وصفته ويطبّقها على فيديوهاتك"
+                    android:textSize="11sp"
+                    android:textColor="#888888"
+                    android:layout_marginBottom="8dp"/>
+
+                <EditText
+                    android:id="@+id/etReferenceUrl"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="https://www.tiktok.com/..."
+                    android:textSize="13sp"
+                    android:inputType="textUri"
+                    android:layoutDirection="ltr"
+                    android:layout_marginBottom="8dp"/>
+
+                <Button
+                    android:id="@+id/btnAnalyzeRef"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:text="🔍 حلّل الفيديو المرجعي"
+                    android:textSize="14sp"
+                    android:textColor="#FFFFFF"
+                    android:backgroundTint="#FF9800"/>
+            </LinearLayout>
+        </androidx.cardview.widget.CardView>
+
         <!-- Pick Video Button -->
         <Button
             android:id="@+id/btnPick"

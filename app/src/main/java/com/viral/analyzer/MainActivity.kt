@@ -73,6 +73,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvTranscript: TextView
     private lateinit var tvVideoName: TextView
     private lateinit var btnCopyAll: Button
+    private lateinit var etReferenceUrl: EditText
+    private lateinit var btnAnalyzeRef: Button
 
     private var selectedVideoUri: Uri? = null
     private var lastAnalysisResult: JSONObject? = null
@@ -109,6 +111,8 @@ class MainActivity : AppCompatActivity() {
         tvTranscript = findViewById(R.id.tvTranscript)
         tvVideoName = findViewById(R.id.tvVideoName)
         btnCopyAll = findViewById(R.id.btnCopyAll)
+        etReferenceUrl = findViewById(R.id.etReferenceUrl)
+        btnAnalyzeRef = findViewById(R.id.btnAnalyzeRef)
 
         val niches = listOf(
             "تصاميم منزلية وديكور",
@@ -124,6 +128,7 @@ class MainActivity : AppCompatActivity() {
         btnAnalyze.setOnClickListener { analyzeVideo() }
         btnEnhance.setOnClickListener { enhanceVideo() }
         btnReport.setOnClickListener { showTrendReport() }
+        btnAnalyzeRef.setOnClickListener { analyzeReferenceVideo() }
         btnCopyAll.setOnClickListener { copyAllToClipboard() }
     }
 
@@ -314,6 +319,95 @@ class MainActivity : AppCompatActivity() {
                     progressBar.visibility = View.GONE
                     btnEnhance.isEnabled = true
                     tvStatus.text = "❌ خطأ في التحسين: ${e.message}"
+                }
+            }
+        }
+    }
+
+    /** Analyze a viral reference video URL so future enhancements mimic its winning formula. */
+    private fun analyzeReferenceVideo() {
+        val url = etReferenceUrl.text.toString().trim()
+        if (url.isEmpty()) {
+            Toast.makeText(this, "الصق رابط فيديو أولاً", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val niche = spinnerNiche.selectedItem.toString()
+        btnAnalyzeRef.isEnabled = false
+        progressBar.visibility = View.VISIBLE
+        tvStatus.text = "📈 جارٍ تحليل الفيديو المرجعي..."
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val reqBody = MultipartBody.Builder()
+                    .setType(MultipartBody.FORM)
+                    .addFormDataPart("url", url)
+                    .addFormDataPart("niche", niche)
+                    .build()
+                val submit = client.newCall(
+                    Request.Builder().url("$SERVER_URL/analyze-reference").post(reqBody).build()
+                ).execute()
+                val sBody = submit.body?.string() ?: throw Exception("لا يوجد رد")
+                if (!submit.isSuccessful) throw Exception("خطأ: ${submit.code}")
+                val jobId = JSONObject(sBody).optString("job_id", "")
+                if (jobId.isEmpty()) throw Exception("تعذّر بدء التحليل")
+
+                var profile: JSONObject? = null
+                var attempt = 0
+                while (attempt < 90) {
+                    attempt++
+                    val pr = client.newCall(
+                        Request.Builder().url("$SERVER_URL/reference-result/$jobId").get().build()
+                    ).execute()
+                    val pBody = pr.body?.string() ?: ""
+                    when (pr.code) {
+                        200 -> profile = JSONObject(pBody).optJSONObject("profile")
+                        202 -> {
+                            withContext(Dispatchers.Main) {
+                                tvStatus.text = "📈 جارٍ تحليل الفيديو المرجعي... (${attempt * 4} ثانية)"
+                            }
+                            kotlinx.coroutines.delay(4000); continue
+                        }
+                        else -> throw Exception("فشل التحليل: $pBody")
+                    }
+                    break
+                }
+                if (profile == null) throw Exception("انتهت المهلة")
+
+                val whyViral = profile.optString("why_viral", "")
+                val summary = profile.optString("summary", "")
+                val texts = profile.optJSONArray("onscreen_texts") ?: JSONArray()
+                val onscreen = buildString {
+                    for (i in 0 until texts.length()) append("• ${texts.getString(i)}\n")
+                }.trim()
+
+                withContext(Dispatchers.Main) {
+                    progressBar.visibility = View.GONE
+                    btnAnalyzeRef.isEnabled = true
+                    tvStatus.text = "✅ تم تعلّم وصفة الفيديو المرجعي!"
+                    val msg = buildString {
+                        appendLine("📈 لماذا نجح هذا الفيديو:")
+                        appendLine(whyViral)
+                        if (onscreen.isNotEmpty()) {
+                            appendLine("\n📝 النصوص التي ظهرت عليه:")
+                            appendLine(onscreen)
+                        }
+                        if (summary.isNotEmpty()) {
+                            appendLine("\n🏆 الوصفة الفائزة:")
+                            appendLine(summary)
+                        }
+                        appendLine("\n✅ سيُطبّق هذا الأسلوب تلقائياً عند تحسين فيديوهاتك في هذا المجال.")
+                    }
+                    android.app.AlertDialog.Builder(this@MainActivity)
+                        .setTitle("✅ تم تحليل الفيديو المرجعي")
+                        .setMessage(msg)
+                        .setPositiveButton("ممتاز!") { _, _ -> }
+                        .show()
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    progressBar.visibility = View.GONE
+                    btnAnalyzeRef.isEnabled = true
+                    tvStatus.text = "❌ خطأ في تحليل المرجع: ${e.message}"
                 }
             }
         }
