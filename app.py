@@ -732,6 +732,7 @@ def health():
         "version": "apify-trends-1",
         "ffmpeg": _FFMPEG_BIN,
         "apify_configured": bool((os.environ.get('APIFY_TOKEN') or '').strip()),
+        "github_configured": bool((os.environ.get('GITHUB_TOKEN') or '').strip()),
         "trends_loaded": bool(trend_data),
         "trends_updated": trend_data.get('last_updated', 'N/A')[:10] if trend_data else 'N/A'
     })
@@ -778,23 +779,39 @@ def diag_apify():
         return jsonify({"error": f"{type(e).__name__}: {str(e)[:300]}"}), 500
 
 
-_trend_run_state = {"running": False, "last": ""}
+_trend_run_state = {"running": False, "last": "", "error": "", "github_write": ""}
 
 
 @app.route('/run-trends', methods=['GET', 'POST'])
 def run_trends():
-    """Manually trigger an Apify-based trend analysis in the background."""
+    """Trigger Apify trend analysis (POST) or read last-run status (GET)."""
+    if request.method == 'GET':
+        # Probe GitHub write capability so we can tell token/permission issues apart
+        try:
+            from trend_monitor import github_get_file
+            content, sha = github_get_file('data/_write_test.txt')
+            from trend_monitor import github_update_file
+            ok = github_update_file('data/_write_test.txt',
+                                    f"ok {datetime.now().isoformat()}", sha, "write test")
+            _trend_run_state["github_write"] = "success" if ok else "FAILED (token/permission?)"
+        except Exception as e:
+            _trend_run_state["github_write"] = f"error: {e}"
+        return jsonify(_trend_run_state)
+
     if _trend_run_state["running"]:
-        return jsonify({"status": "already_running", "last": _trend_run_state["last"]}), 202
+        return jsonify({"status": "already_running"}), 202
 
     def _job():
         _trend_run_state["running"] = True
+        _trend_run_state["error"] = ""
         try:
             from trend_monitor import run_trend_analysis
             run_trend_analysis()
             _trend_run_state["last"] = datetime.now().isoformat()
         except Exception as e:
-            print(f"run-trends error: {e}")
+            import traceback
+            traceback.print_exc()
+            _trend_run_state["error"] = f"{type(e).__name__}: {str(e)[:300]}"
         finally:
             _trend_run_state["running"] = False
 
