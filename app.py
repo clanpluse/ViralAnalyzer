@@ -607,17 +607,18 @@ Real trend data for "{niche}":
 قرّر بنفسك — بناءً على المدة وما ينجح في الترند — **العدد الأمثل** للنصوص التي تُعرض على الفيديو
 (عادة بين 2 و 5)، و**توقيت** كل نص و**موضعه**، لتحقيق أعلى إكمال وتفاعل ومشاركة.
 
-⚠️ قاعدة صارمة: **كل النصوص بالعربية الفصحى فقط**. ممنوع تماماً أي كلمة أو حرف إنجليزي/لاتيني داخل النصوص — حتى لو كان الفيديو المرجعي بالإنجليزية، تَرجِم الفكرة والأسلوب إلى العربية ولا تنسخ كلمات إنجليزية. كل نص **قصير جداً**: من 2 إلى 4 كلمات فقط وبحد أقصى 22 حرفاً ليظهر في سطر واحد دون أن يملأ الشاشة. بدون رموز خاصة أو إيموجي.
+⚠️ قاعدة صارمة: **كل النصوص بالعربية الفصحى فقط**. ممنوع تماماً أي كلمة أو حرف إنجليزي/لاتيني داخل النصوص — حتى لو كان الفيديو المرجعي بالإنجليزية، تَرجِم الفكرة والأسلوب إلى العربية ولا تنسخ كلمات إنجليزية. اجعل كل نص موجزاً وقوياً (يفضّل حتى 6 كلمات / 45 حرفاً)؛ سيُلفّ تلقائياً لأسطر إن طال. بدون رموز خاصة أو إيموجي.
 - start_pct و end_pct نسبة من مدة الفيديو بين 0 و 1 (مثال: 0.0 إلى 0.15 = أول 15%).
 - position إحدى: "top" أو "bottom" أو "center".
+- color: اختر لوناً مناسباً للنص من: "white" (افتراضي)، "yellow" (للـ Hook والجذب)، "cyan"، "pink"، "green" — بما يناسب غرض النص.
 - أول نص يجب أن يكون Hook قوي يبدأ من 0.
 
 أعِد JSON فقط بهذه الصيغة:
 {{
   "overlays": [
-    {{"text": "نص عربي", "start_pct": 0.0, "end_pct": 0.15, "position": "top", "purpose": "Hook"}},
-    {{"text": "نص عربي", "start_pct": 0.4, "end_pct": 0.6, "position": "bottom", "purpose": "تفاعل"}},
-    {{"text": "نص عربي", "start_pct": 0.85, "end_pct": 1.0, "position": "top", "purpose": "CTA"}}
+    {{"text": "نص عربي", "start_pct": 0.0, "end_pct": 0.15, "position": "top", "purpose": "Hook", "color": "yellow"}},
+    {{"text": "نص عربي", "start_pct": 0.4, "end_pct": 0.6, "position": "bottom", "purpose": "تفاعل", "color": "white"}},
+    {{"text": "نص عربي", "start_pct": 0.85, "end_pct": 1.0, "position": "top", "purpose": "CTA", "color": "cyan"}}
   ],
   "visual_tip": "نصيحة بصرية مهمة (بالعربية)",
   "algorithm_score_boost": "كيف تساعد هذه الطبقات الخوارزمية تحديداً (بالعربية)"
@@ -670,9 +671,12 @@ def _sanitize_overlays(raw):
         pos = o.get("position", "top")
         if pos not in ("top", "bottom", "center"):
             pos = "top"
-        out.append({"text": text[:26], "start_pct": round(sp, 3),
+        color = o.get("color", "white")
+        if color not in ("white", "yellow", "cyan", "pink", "green"):
+            color = "white"
+        out.append({"text": text[:45], "start_pct": round(sp, 3),
                     "end_pct": round(ep, 3), "position": pos,
-                    "purpose": (o.get("purpose") or "")[:30]})
+                    "purpose": (o.get("purpose") or "")[:30], "color": color})
     return out
 
 

@@ -24,9 +24,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.media3.common.MediaItem
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.effect.BitmapOverlay
 import androidx.media3.effect.OverlayEffect
 import androidx.media3.effect.OverlaySettings
-import androidx.media3.effect.TextOverlay
 import androidx.media3.effect.TextureOverlay
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
@@ -269,7 +269,8 @@ class MainActivity : AppCompatActivity() {
                             startPct = o.optDouble("start_pct", 0.0).toFloat(),
                             endPct = o.optDouble("end_pct", 1.0).toFloat(),
                             position = o.optString("position", "top"),
-                            purpose = o.optString("purpose", "")
+                            purpose = o.optString("purpose", ""),
+                            color = o.optString("color", "white")
                         )
                     )
                 }
@@ -440,17 +441,20 @@ class MainActivity : AppCompatActivity() {
     ) = suspendCoroutine<Unit> { cont ->
         val durationUs = if (durationSec > 0) durationSec * 1_000_000L else 30_000_000L
 
-        // Font size proportional to the video height -> consistent look on any resolution
+        // Read video dimensions -> font + wrap width proportional to the real video
         var videoHeight = 1280
+        var videoWidth = 720
         try {
             val mmr = android.media.MediaMetadataRetriever()
             mmr.setDataSource(this, inputUri)
             videoHeight = mmr.extractMetadata(
-                android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT
-            )?.toIntOrNull() ?: 1280
+                android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull() ?: 1280
+            videoWidth = mmr.extractMetadata(
+                android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull() ?: 720
             mmr.release()
         } catch (_: Exception) {}
-        val fontPx = (videoHeight * 0.032f).toInt().coerceIn(20, 46)
+        val fontPx = (videoHeight * 0.035f).toInt().coerceIn(22, 52)
+        val maxTextWidth = (videoWidth * 0.82f).toInt().coerceAtLeast(120)
 
         // One overlay per segment, each visible only inside its own time window.
         val overlays = ArrayList<TextureOverlay>()
@@ -463,7 +467,9 @@ class MainActivity : AppCompatActivity() {
                 "center" -> 0.0f
                 else -> 0.78f
             }
-            overlays.add(WindowedTextOverlay(s.text, startUs, endUs, anchorY, fontPx))
+            overlays.add(
+                WrappedTextOverlay(s.text, startUs, endUs, anchorY, fontPx, maxTextWidth, s.color)
+            )
         }
 
         if (overlays.isEmpty()) {
@@ -722,30 +728,75 @@ data class OverlaySegment(
     val startPct: Float,
     val endPct: Float,
     val position: String,
-    val purpose: String
+    val purpose: String,
+    val color: String = "white"
 )
 
 /**
- * A text overlay shown only within [startUs, endUs]. Outside the window it stays
- * fully transparent. Positioned via [topAnchorY] in normalized coords:
- * +0.75 = near the top, -0.75 = near the bottom.
+ * A nicely formatted text overlay: the Arabic text is wrapped (centered, RTL) within
+ * [maxWidthPx], drawn on a rounded semi-transparent background, in the chosen [colorName].
+ * Visible only within [startUs, endUs]; positioned via [topAnchorY] (+top / -bottom).
  */
 @UnstableApi
-class WindowedTextOverlay(
+class WrappedTextOverlay(
     text: String,
     private val startUs: Long,
     private val endUs: Long,
     private val topAnchorY: Float,
-    fontPx: Int = 48
-) : TextOverlay() {
+    fontPx: Int,
+    maxWidthPx: Int,
+    colorName: String
+) : BitmapOverlay() {
 
-    private val span: SpannableString = SpannableString(text).apply {
-        setSpan(AbsoluteSizeSpan(fontPx), 0, length, Spanned.SPAN_INCLUSIVE_INCLUSIVE)
-        setSpan(ForegroundColorSpan(Color.WHITE), 0, length, Spanned.SPAN_INCLUSIVE_INCLUSIVE)
-        setSpan(BackgroundColorSpan(Color.argb(150, 0, 0, 0)), 0, length, Spanned.SPAN_INCLUSIVE_INCLUSIVE)
+    private val bitmap: android.graphics.Bitmap = buildBitmap(text, fontPx, maxWidthPx, colorName)
+
+    private fun colorOf(name: String): Int = when (name) {
+        "yellow" -> Color.rgb(255, 222, 60)
+        "cyan" -> Color.rgb(0, 229, 255)
+        "pink" -> Color.rgb(255, 90, 160)
+        "green" -> Color.rgb(120, 255, 90)
+        else -> Color.WHITE
     }
 
-    override fun getText(presentationTimeUs: Long): SpannableString = span
+    private fun buildBitmap(text: String, fontPx: Int, maxWidthPx: Int, colorName: String): android.graphics.Bitmap {
+        val pad = (fontPx * 0.5f).toInt()
+        val tp = android.text.TextPaint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = colorOf(colorName)
+            textSize = fontPx.toFloat()
+            typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
+            setShadowLayer(fontPx * 0.12f, 0f, 0f, Color.BLACK)
+        }
+        val layout = android.text.StaticLayout.Builder
+            .obtain(text, 0, text.length, tp, maxWidthPx)
+            .setAlignment(android.text.Layout.Alignment.ALIGN_CENTER)
+            .setLineSpacing(0f, 1.1f)
+            .setIncludePad(false)
+            .build()
+
+        val w = (maxWidthPx + pad * 2)
+        val h = (layout.height + pad * 2)
+        val bmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bmp)
+        // rounded semi-transparent background sized to the actual text block
+        var textW = 0f
+        for (i in 0 until layout.lineCount) textW = maxOf(textW, layout.getLineWidth(i))
+        val bgLeft = (w - textW) / 2f - pad
+        val bgRight = (w + textW) / 2f + pad
+        val bgPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(140, 0, 0, 0)
+        }
+        canvas.drawRoundRect(
+            android.graphics.RectF(bgLeft.coerceAtLeast(0f), 0f, bgRight.coerceAtMost(w.toFloat()), h.toFloat()),
+            pad.toFloat(), pad.toFloat(), bgPaint
+        )
+        canvas.save()
+        canvas.translate(pad.toFloat(), pad.toFloat())
+        layout.draw(canvas)
+        canvas.restore()
+        return bmp
+    }
+
+    override fun getBitmap(presentationTimeUs: Long): android.graphics.Bitmap = bitmap
 
     override fun getOverlaySettings(presentationTimeUs: Long): OverlaySettings {
         val visible = presentationTimeUs in startUs..endUs
