@@ -572,32 +572,34 @@ Real trend data for "{niche}":
 - Engagement triggers: {', '.join(trend_data.get('engagement_triggers', [])[:3])}
 """
 
-    prompt = f"""You are a TikTok algorithm expert (2024-2025).
+    prompt = f"""أنت خبير في خوارزميات TikTok و Instagram Reels لعام 2025.
 
-TikTok algorithm factors:
-1. Completion Rate - most important
-2. Rewatch Rate
-3. Comments & Saves stronger than likes
-4. Shares multiply reach 10x
-5. First 1.5 seconds determine if viewer stays
+أحدث عوامل الخوارزمية (2025):
+1. نسبة إكمال المشاهدة (Completion Rate) — الأهم على الإطلاق
+2. إعادة المشاهدة (Rewatch)
+3. التعليقات والحفظ (Saves) أقوى من الإعجابات
+4. المشاركة (Shares) تضاعف الوصول 10 أضعاف
+5. أول 1.5 ثانية تحدّد بقاء المشاهد
+6. النصوص على الشاشة (Text Hooks) ترفع الإكمال بقوة في 2025
 
-Video info:
-- Niche: {niche}
-- Title: {title or 'unknown'}
-- Speech: {transcript or 'no speech'}
-- Duration: {duration}s
+معلومات الفيديو:
+- المجال: {niche}
+- العنوان: {title or 'غير معروف'}
+- الكلام المنطوق: {transcript or 'لا يوجد'}
+- المدة: {duration} ثانية
 {trend_context}
 
-Generate ENGLISH text overlays for the video (must be simple ASCII, no special chars).
-Return JSON only:
+اكتب نصوصاً تُعرض على الفيديو **باللغة العربية** بناءً على أحدث ما ينجح في الخوارزمية.
+النصوص قصيرة وقوية ومناسبة للعرض على الشاشة (تجنّب الرموز الخاصة والإيموجي داخل النص نفسه).
+أعِد JSON فقط:
 {{
-  "hook_text": "Short hook text for first 3 seconds (max 6 words, starts with number/question/challenge)",
-  "hook_reason": "Why this hook boosts completion rate",
-  "engagement_text": "Middle text to trigger comments/saves (max 5 words)",
-  "engagement_reason": "Why this boosts engagement",
-  "cta_text": "End CTA to boost shares (max 4 words)",
-  "visual_tip": "Key visual tip for this video",
-  "algorithm_score_boost": "How these improvements help the algorithm specifically"
+  "hook_text": "نص افتتاحي عربي لأول 3 ثواني (3-6 كلمات، يبدأ برقم أو سؤال أو تحدٍّ يثير الفضول)",
+  "hook_reason": "لماذا يرفع هذا الـ Hook نسبة الإكمال (بالعربية)",
+  "engagement_text": "نص عربي قصير في المنتصف يحفّز التعليق/الحفظ (3-5 كلمات)",
+  "engagement_reason": "لماذا يرفع التفاعل (بالعربية)",
+  "cta_text": "نداء عربي قصير في النهاية يحفّز المشاركة (2-4 كلمات)",
+  "visual_tip": "نصيحة بصرية مهمة لهذا الفيديو (بالعربية)",
+  "algorithm_score_boost": "كيف تساعد هذه التحسينات الخوارزمية تحديداً (بالعربية)"
 }}"""
 
     response = call_claude(prompt, max_tokens=600)
@@ -631,12 +633,12 @@ def enhance():
     enhancements = generate_algorithm_enhancements(niche, title, transcript, duration)
     if not enhancements:
         enhancements = {
-            "hook_text": "Watch till the end!",
-            "hook_reason": "Strong hooks boost completion rate",
-            "engagement_text": "Save this video",
-            "engagement_reason": "Saves are a strong engagement signal",
-            "cta_text": "Share with a friend",
-            "algorithm_score_boost": "Shares multiply reach",
+            "hook_text": "شاهد حتى النهاية!",
+            "hook_reason": "الجملة الافتتاحية القوية ترفع نسبة الإكمال",
+            "engagement_text": "احفظ هذا الفيديو",
+            "engagement_reason": "الحفظ إشارة تفاعل قوية للخوارزمية",
+            "cta_text": "شاركه مع صديق",
+            "algorithm_score_boost": "المشاركة تضاعف الوصول",
         }
 
     # Ensure overlay texts are ASCII-safe (Media3 handles unicode, but keep clean)
@@ -727,7 +729,7 @@ def health():
     trend_data = load_trend_data("عام")
     return jsonify({
         "status": "ok",
-        "version": "ondevice-1",
+        "version": "ondevice-ar-1",
         "ffmpeg": _FFMPEG_BIN,
         "trends_loaded": bool(trend_data),
         "trends_updated": trend_data.get('last_updated', 'N/A')[:10] if trend_data else 'N/A'
