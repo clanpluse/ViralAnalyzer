@@ -1,52 +1,62 @@
 {
   "تصاميم منزلية وديكور": {
-    "why_viral": "الفيديو يعرض تحولاً بصرياً مذهلاً من زوايا متعددة للمساحة ذاتها، مما يخلق فضولاً بصرياً قوياً. المنتج (أثاث فاخر) يتمتع بجودة عالية وتصميم عصري يستهدف فئة عالية الدخل تبحث عن الرفاهية والتخصيص.",
-    "hook_style": "اللقطة الأولى تظهر الغرفة من زاوية جانبية عريضة تكشف عمق المساحة والإضاءة المتقنة، مما يجذب العين فوراً للتفاصيل الفاخرة والألوان المحايدة الأنيقة.",
-    "onscreen_texts": [],
-    "text_style": "الكابشن طويل وفعّال، يستخدم الترصيص (checkmarks) لتقسيم المميزات، نبرة احترافية وموجهة مباشرة للعملاء المحتملين، يتضمن رقم واتس مباشر ويذكر مناطق جغرافية محددة (مصر، القاهرة، الشيخ زايد).",
-    "pacing": "إيقاع سلس وهادئ، 4 لقطات ثابتة (ستاتيك) تظهر تدريجياً مع زوايا كاميرا مختلفة (عريضة، قريبة، عمودية)، المدة 7 ثواني تتيح للعين استكشاف التفاصيل دون عجلة.",
-    "caption_formula": "[فكرة عاطفية] — [وصف المنتج] ✨ + [قائمة مميزات بـ checkmarks] + [معلومات الاتصال المباشر] + [هاشتاغات محددة جغرافياً وفئوياً]",
+    "why_viral": "الفيديو يعرض تحولاً بصرياً درامياً من زوايا مختلفة لنفس المساحة، مما يخلق فضولاً وإعجاباً فوري بالتصميم الفاخر. استهداف سوق مصري محدد (القاهرة والشيخ زايد) مع دعوة واضحة للعمل (DM) يزيد التحويل والمشاركة.",
+    "hook_style": "اللقطة الأولى تظهر زاوية قريبة من الكراسي الأنيقة مع إضاءة دافئة ناعمة، تجذب الانتباه فوراً للتفاصيل الفاخرة والألوان المحايدة الراقية.",
+    "onscreen_texts": [
+      "The living room set you've been waiting for",
+      "where comfort meets refined craftsmanship",
+      "✅ Custom-made to match your space",
+      "✅ Available in a wide range of colors & fabrics",
+      "✅ Made to order using high-quality materials",
+      "✅ Nationwide delivery across Egypt",
+      "✅ Professional assembly available",
+      "📩 DM us now for price & customization details",
+      "📞 01501560301"
+    ],
+    "text_style": "نصوص بيضاء نظيفة على خلفية شبه شفافة، موضوعة في الأسفل أو الجانب. قصيرة وجريئة في البداية (Hook)، ثم قائمة مرقمة بـ checkmark emojis توحي بالمصداقية والاحترافية. النبرة فاخرة لكن ودية.",
+    "pacing": "بطيء وانسيابي جداً - كل لقطة تأخذ حوالي 1.5-2 ثانية، مما يسمح للمشاهد بامتصاص التفاصيل والإضاءة. انتقالات سلسة بدون قطع حادة. الموسيقى الخلفية (غير مسموعة بالوصف) تبدو هادئة وأنيقة.",
+    "caption_formula": "[Hook عاطفي/رغبة] — [وصف قصير للمنتج] ✨ [5-6 فوائد بصيغة checkmarks] 📩 [CTA واضح مع معلومات التواصل] #[هاشتاجات_نخبوية_وجغرافية]",
     "overlay_template": [
       {
-        "purpose": "Hook إيموشيونال",
-        "position": "top-center",
+        "purpose": "Hook الرئيسي",
+        "position": "bottom-center",
         "start_pct": 0.0,
-        "end_pct": 0.2,
-        "style_note": "جملة قصيرة متفائلة عن التوقع والرغبة (The living room set you've been waiting for)"
+        "end_pct": 0.3,
+        "style_note": "نص أبيض عريض (28-32px)، جملة واحدة أو جملتان قصيرتان، تثير الرغبة والفضول الفوري"
       },
       {
-        "purpose": "وصف القيمة",
-        "position": "center",
-        "start_pct": 0.2,
-        "end_pct": 0.45,
-        "style_note": "جملة ثانية عن المميزات (where comfort meets refined craftsmanship) بنبرة احترافية"
+        "purpose": "وصف المنتج الثانوي",
+        "position": "bottom-center",
+        "start_pct": 0.25,
+        "end_pct": 0.5,
+        "style_note": "نص أبيض متوسط (20-24px)، جملة وصفية رقيقة، تعمق الفكرة الأولى"
       },
       {
-        "purpose": "قائمة البيانات",
-        "position": "bottom-left to bottom-right",
-        "start_pct": 0.45,
+        "purpose": "قائمة الفوائد",
+        "position": "bottom-center",
+        "start_pct": 0.4,
         "end_pct": 0.85,
-        "style_note": "4-5 نقاط بـ ✅ checkmarks، لون أبيض على خلفية شفافة، خط واضح وكبير"
+        "style_note": "✅ emojis + نص أبيض (18-20px)، سطر واحد لكل فائدة، توضع بتسلسل سريع"
       },
       {
         "purpose": "Call-to-Action",
         "position": "bottom-center",
-        "start_pct": 0.85,
+        "start_pct": 0.75,
         "end_pct": 1.0,
-        "style_note": "رقم واتس مع emoji 📞 أو 📩 في نهاية، لون عالي التباين"
+        "style_note": "رقم الهاتف + DM emoji، نص متوسط (20px)، واضح وسهل القراءة والذاكرة"
       }
     ],
-    "summary": "الوصفة الفائزة: عرض بصري هادئ متعدد الزوايا لمنتج فاخر بجودة عالية → فكرة عاطفية قوية في البداية → قائمة مميزات واضحة بـ checkmarks → معلومات اتصال مباشر في النهاية → هاشتاغات موجهة جغرافياً وديموغرافياً. يناسب المنتجات الفاخرة والخدمات المخصصة والعقارات.",
+    "summary": "الوصفة الفائزة = فيديو بطيء الإيقاع يعرض منتجاً فاخراً من زوايا متعددة + إضاءة احترافية دافئة + Hook عاطفي في البداية + قائمة checkmarks للفوائس الملموسة + CTA صريح بمعلومات واضحة + هاشتاجات موضعية واجتماعية عالية الاستهداف. المفتاح: إظهار الجودة والتفاصيل ببطء، بناء الثقة بـ social proof (الخيارات المتاحة)، وتسهيل الاتصال المباشر.",
     "source_url": "https://vt.tiktok.com/ZSxwmXfoR/",
     "source_meta": {
       "title": "The living room set you’ve been waiting for — where comfort meets refined craftsmanship. Designed to elevate your space with premium upholstery, balanced proportions, and timeless elegance. ✨ Custom-made to match your space and lifestyle. ✅ Available in a wide range of colors & fabrics ✅ Made to order using high-quality materials ✅ Nationwide delivery across Egypt ✅ Professional assembly available 📩 DM us now for price & customization details 📞 01501560301 #WakanFurniture #LuxuryLivingRoom #CustomLivingRoom #ModernInteriors #ElegantLiving #HighEndFurniture #LuxuryHomesEgypt #CairoLuxury #NewCairo #SheikhZayed #BespokeDesign #LivingRoomGoals #PremiumLiving",
-      "play_count": 1332843,
+      "play_count": 1332880,
       "digg_count": 23081,
       "comment_count": 47,
-      "share_count": 8799,
+      "share_count": 8800,
       "duration": 7,
       "author": "wakanfurniture_"
     },
-    "analyzed_at": "2026-06-02T17:11:59.488214"
+    "analyzed_at": "2026-06-02T17:14:35.433614"
   }
 }
