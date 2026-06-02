@@ -450,7 +450,7 @@ class MainActivity : AppCompatActivity() {
             )?.toIntOrNull() ?: 1280
             mmr.release()
         } catch (_: Exception) {}
-        val fontPx = (videoHeight * 0.04f).toInt().coerceIn(22, 64)
+        val fontPx = (videoHeight * 0.032f).toInt().coerceIn(20, 46)
 
         // One overlay per segment, each visible only inside its own time window.
         val overlays = ArrayList<TextureOverlay>()
