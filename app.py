@@ -606,7 +606,8 @@ Real trend data for "{niche}":
 
 قرّر بنفسك — بناءً على المدة وما ينجح في الترند — **العدد الأمثل** للنصوص التي تُعرض على الفيديو
 (عادة بين 2 و 5)، و**توقيت** كل نص و**موضعه**، لتحقيق أعلى إكمال وتفاعل ومشاركة.
-النصوص **بالعربية**، قصيرة وقوية، بدون رموز خاصة أو إيموجي داخل النص.
+
+⚠️ قاعدة صارمة: **كل النصوص بالعربية الفصحى فقط**. ممنوع تماماً أي كلمة أو حرف إنجليزي/لاتيني داخل النصوص — حتى لو كان الفيديو المرجعي بالإنجليزية، تَرجِم الفكرة والأسلوب إلى العربية ولا تنسخ كلمات إنجليزية. النصوص قصيرة وقوية، بدون رموز خاصة أو إيموجي.
 - start_pct و end_pct نسبة من مدة الفيديو بين 0 و 1 (مثال: 0.0 إلى 0.15 = أول 15%).
 - position إحدى: "top" أو "bottom" أو "center".
 - أول نص يجب أن يكون Hook قوي يبدأ من 0.
@@ -643,12 +644,21 @@ Real trend data for "{niche}":
         return None
 
 
+def _strip_latin(text):
+    """Safety net: drop Latin letters so overlays stay Arabic-only, tidy spaces."""
+    import re
+    text = re.sub(r'[A-Za-z]+', ' ', text)
+    text = re.sub(r'\s{2,}', ' ', text).strip()
+    return text
+
+
 def _sanitize_overlays(raw):
-    """Validate/clamp the overlay list coming from Claude."""
+    """Validate/clamp the overlay list coming from Claude (Arabic-only)."""
     out = []
     for o in (raw or [])[:6]:
-        text = (o.get("text") or "").strip()
-        if not text:
+        text = _strip_latin((o.get("text") or "").strip())
+        # need at least a couple of Arabic characters to be meaningful
+        if len([c for c in text if '؀' <= c <= 'ۿ']) < 2:
             continue
         try:
             sp = max(0.0, min(1.0, float(o.get("start_pct", 0))))
@@ -991,7 +1001,7 @@ def health():
     trend_data = load_trend_data("عام")
     return jsonify({
         "status": "ok",
-        "version": "reference-async-2",
+        "version": "ar-font-1",
         "ffmpeg": _FFMPEG_BIN,
         "apify_configured": bool((os.environ.get('APIFY_TOKEN') or '').strip()),
         "github_configured": bool((os.environ.get('GITHUB_TOKEN') or '').strip()),

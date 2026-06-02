@@ -423,6 +423,18 @@ class MainActivity : AppCompatActivity() {
     ) = suspendCoroutine<Unit> { cont ->
         val durationUs = if (durationSec > 0) durationSec * 1_000_000L else 30_000_000L
 
+        // Font size proportional to the video height -> consistent look on any resolution
+        var videoHeight = 1280
+        try {
+            val mmr = android.media.MediaMetadataRetriever()
+            mmr.setDataSource(this, inputUri)
+            videoHeight = mmr.extractMetadata(
+                android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT
+            )?.toIntOrNull() ?: 1280
+            mmr.release()
+        } catch (_: Exception) {}
+        val fontPx = (videoHeight * 0.04f).toInt().coerceIn(22, 64)
+
         // One overlay per segment, each visible only inside its own time window.
         val overlays = ArrayList<TextureOverlay>()
         for (s in segments) {
@@ -430,11 +442,11 @@ class MainActivity : AppCompatActivity() {
             var endUs = (s.endPct.coerceIn(0f, 1f) * durationUs).toLong()
             if (endUs <= startUs) endUs = (startUs + 2_000_000L).coerceAtMost(durationUs)
             val anchorY = when (s.position) {
-                "bottom" -> -0.75f
+                "bottom" -> -0.78f
                 "center" -> 0.0f
-                else -> 0.75f
+                else -> 0.78f
             }
-            overlays.add(WindowedTextOverlay(s.text, startUs, endUs, anchorY))
+            overlays.add(WindowedTextOverlay(s.text, startUs, endUs, anchorY, fontPx))
         }
 
         if (overlays.isEmpty()) {
@@ -661,13 +673,14 @@ class WindowedTextOverlay(
     text: String,
     private val startUs: Long,
     private val endUs: Long,
-    private val topAnchorY: Float
+    private val topAnchorY: Float,
+    fontPx: Int = 48
 ) : TextOverlay() {
 
     private val span: SpannableString = SpannableString(text).apply {
-        setSpan(AbsoluteSizeSpan(72), 0, length, Spanned.SPAN_INCLUSIVE_INCLUSIVE)
+        setSpan(AbsoluteSizeSpan(fontPx), 0, length, Spanned.SPAN_INCLUSIVE_INCLUSIVE)
         setSpan(ForegroundColorSpan(Color.WHITE), 0, length, Spanned.SPAN_INCLUSIVE_INCLUSIVE)
-        setSpan(BackgroundColorSpan(Color.argb(160, 0, 0, 0)), 0, length, Spanned.SPAN_INCLUSIVE_INCLUSIVE)
+        setSpan(BackgroundColorSpan(Color.argb(150, 0, 0, 0)), 0, length, Spanned.SPAN_INCLUSIVE_INCLUSIVE)
     }
 
     override fun getText(presentationTimeUs: Long): SpannableString = span
