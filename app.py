@@ -582,7 +582,7 @@ Real trend data for "{niche}":
 3. التعليقات والحفظ (Saves) أقوى من الإعجابات
 4. المشاركة (Shares) تضاعف الوصول 10 أضعاف
 5. أول 1.5 ثانية تحدّد بقاء المشاهد
-6. النصوص على الشاشة (Text Hooks) ترفع الإكمال بقوة في 2025
+6. تغيير النص على الشاشة كل بضع ثوانٍ يرفع الإكمال (يمنع الملل)
 
 معلومات الفيديو:
 - المجال: {niche}
@@ -591,20 +591,25 @@ Real trend data for "{niche}":
 - المدة: {duration} ثانية
 {trend_context}
 
-اكتب نصوصاً تُعرض على الفيديو **باللغة العربية** بناءً على أحدث ما ينجح في الخوارزمية.
-النصوص قصيرة وقوية ومناسبة للعرض على الشاشة (تجنّب الرموز الخاصة والإيموجي داخل النص نفسه).
-أعِد JSON فقط:
+قرّر بنفسك — بناءً على المدة وما ينجح في الترند — **العدد الأمثل** للنصوص التي تُعرض على الفيديو
+(عادة بين 2 و 5)، و**توقيت** كل نص و**موضعه**، لتحقيق أعلى إكمال وتفاعل ومشاركة.
+النصوص **بالعربية**، قصيرة وقوية، بدون رموز خاصة أو إيموجي داخل النص.
+- start_pct و end_pct نسبة من مدة الفيديو بين 0 و 1 (مثال: 0.0 إلى 0.15 = أول 15%).
+- position إحدى: "top" أو "bottom" أو "center".
+- أول نص يجب أن يكون Hook قوي يبدأ من 0.
+
+أعِد JSON فقط بهذه الصيغة:
 {{
-  "hook_text": "نص افتتاحي عربي لأول 3 ثواني (3-6 كلمات، يبدأ برقم أو سؤال أو تحدٍّ يثير الفضول)",
-  "hook_reason": "لماذا يرفع هذا الـ Hook نسبة الإكمال (بالعربية)",
-  "engagement_text": "نص عربي قصير في المنتصف يحفّز التعليق/الحفظ (3-5 كلمات)",
-  "engagement_reason": "لماذا يرفع التفاعل (بالعربية)",
-  "cta_text": "نداء عربي قصير في النهاية يحفّز المشاركة (2-4 كلمات)",
-  "visual_tip": "نصيحة بصرية مهمة لهذا الفيديو (بالعربية)",
-  "algorithm_score_boost": "كيف تساعد هذه التحسينات الخوارزمية تحديداً (بالعربية)"
+  "overlays": [
+    {{"text": "نص عربي", "start_pct": 0.0, "end_pct": 0.15, "position": "top", "purpose": "Hook"}},
+    {{"text": "نص عربي", "start_pct": 0.4, "end_pct": 0.6, "position": "bottom", "purpose": "تفاعل"}},
+    {{"text": "نص عربي", "start_pct": 0.85, "end_pct": 1.0, "position": "top", "purpose": "CTA"}}
+  ],
+  "visual_tip": "نصيحة بصرية مهمة (بالعربية)",
+  "algorithm_score_boost": "كيف تساعد هذه الطبقات الخوارزمية تحديداً (بالعربية)"
 }}"""
 
-    response = call_claude(prompt, max_tokens=600)
+    response = call_claude(prompt, max_tokens=900)
     if not response:
         return None
 
@@ -617,6 +622,29 @@ Real trend data for "{niche}":
         return json.loads(text)
     except Exception:
         return None
+
+
+def _sanitize_overlays(raw):
+    """Validate/clamp the overlay list coming from Claude."""
+    out = []
+    for o in (raw or [])[:6]:
+        text = (o.get("text") or "").strip()
+        if not text:
+            continue
+        try:
+            sp = max(0.0, min(1.0, float(o.get("start_pct", 0))))
+            ep = max(0.0, min(1.0, float(o.get("end_pct", 1))))
+        except Exception:
+            sp, ep = 0.0, 1.0
+        if ep <= sp:
+            ep = min(1.0, sp + 0.15)
+        pos = o.get("position", "top")
+        if pos not in ("top", "bottom", "center"):
+            pos = "top"
+        out.append({"text": text[:60], "start_pct": round(sp, 3),
+                    "end_pct": round(ep, 3), "position": pos,
+                    "purpose": (o.get("purpose") or "")[:30]})
+    return out
 
 
 @app.route('/enhance', methods=['POST'])
@@ -632,24 +660,22 @@ def enhance():
     except Exception:
         duration = 0
 
-    enhancements = generate_algorithm_enhancements(niche, title, transcript, duration)
-    if not enhancements:
-        enhancements = {
-            "hook_text": "شاهد حتى النهاية!",
-            "hook_reason": "الجملة الافتتاحية القوية ترفع نسبة الإكمال",
-            "engagement_text": "احفظ هذا الفيديو",
-            "engagement_reason": "الحفظ إشارة تفاعل قوية للخوارزمية",
-            "cta_text": "شاركه مع صديق",
-            "algorithm_score_boost": "المشاركة تضاعف الوصول",
-        }
+    enhancements = generate_algorithm_enhancements(niche, title, transcript, duration) or {}
+    overlays = _sanitize_overlays(enhancements.get("overlays"))
 
-    # Ensure overlay texts are ASCII-safe (Media3 handles unicode, but keep clean)
+    # Fallback: a sensible default template if Claude returned nothing usable
+    if not overlays:
+        overlays = [
+            {"text": "شاهد حتى النهاية", "start_pct": 0.0, "end_pct": 0.15,
+             "position": "top", "purpose": "Hook"},
+            {"text": "احفظ هذا الفيديو", "start_pct": 0.45, "end_pct": 0.65,
+             "position": "bottom", "purpose": "تفاعل"},
+            {"text": "شاركه مع صديق", "start_pct": 0.85, "end_pct": 1.0,
+             "position": "top", "purpose": "CTA"},
+        ]
+
     return jsonify({
-        "hook_text": enhancements.get("hook_text", ""),
-        "hook_reason": enhancements.get("hook_reason", ""),
-        "engagement_text": enhancements.get("engagement_text", ""),
-        "engagement_reason": enhancements.get("engagement_reason", ""),
-        "cta_text": enhancements.get("cta_text", ""),
+        "overlays": overlays,
         "visual_tip": enhancements.get("visual_tip", ""),
         "algorithm_score_boost": enhancements.get("algorithm_score_boost", ""),
     })
@@ -731,7 +757,7 @@ def health():
     trend_data = load_trend_data("عام")
     return jsonify({
         "status": "ok",
-        "version": "apify-safe-1",
+        "version": "dyn-overlays-1",
         "ffmpeg": _FFMPEG_BIN,
         "apify_configured": bool((os.environ.get('APIFY_TOKEN') or '').strip()),
         "github_configured": bool((os.environ.get('GITHUB_TOKEN') or '').strip()),

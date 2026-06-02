@@ -251,10 +251,24 @@ class MainActivity : AppCompatActivity() {
                 if (!resp.isSuccessful) throw Exception("خطأ: ${resp.code}")
                 val json = JSONObject(body)
 
-                val hookText = json.optString("hook_text", "")
-                val hookReason = json.optString("hook_reason", "")
-                val engageText = json.optString("engagement_text", "")
-                val ctaText = json.optString("cta_text", "")
+                // Dynamic overlays: count, timing and position decided by the analysis
+                val overlaysJson = json.optJSONArray("overlays") ?: JSONArray()
+                val segments = ArrayList<OverlaySegment>()
+                for (i in 0 until overlaysJson.length()) {
+                    val o = overlaysJson.getJSONObject(i)
+                    val text = o.optString("text", "").trim()
+                    if (text.isEmpty()) continue
+                    segments.add(
+                        OverlaySegment(
+                            text = text,
+                            startPct = o.optDouble("start_pct", 0.0).toFloat(),
+                            endPct = o.optDouble("end_pct", 1.0).toFloat(),
+                            position = o.optString("position", "top"),
+                            purpose = o.optString("purpose", "")
+                        )
+                    )
+                }
+                if (segments.isEmpty()) throw Exception("لم تصل نصوص للتحسين")
                 val algoBoost = json.optString("algorithm_score_boost", "")
 
                 // 2) Render the overlays ON THE DEVICE (fast, hardware accelerated)
@@ -262,7 +276,7 @@ class MainActivity : AppCompatActivity() {
                     tvStatus.text = "🎬 جارٍ تحسين الفيديو على الجهاز..."
                 }
                 val outFile = File(cacheDir, "viral_enhanced_${System.currentTimeMillis()}.mp4")
-                renderOverlaysOnDevice(uri, hookText, engageText, ctaText, durationSec, outFile)
+                renderOverlaysOnDevice(uri, segments, durationSec, outFile)
 
                 // 3) Save to gallery
                 saveVideoFileToGallery(outFile)
@@ -274,20 +288,14 @@ class MainActivity : AppCompatActivity() {
                     tvStatus.text = "✅ الفيديو المحسّن تم حفظه في المعرض!"
 
                     val report = buildString {
-                        appendLine("🎬 التحسينات المُطبَّقة على الفيديو:")
+                        appendLine("🎬 التحسينات المُطبَّقة (${segments.size} نصوص):")
                         appendLine("━━━━━━━━━━━━━━━━━")
-                        if (hookText.isNotEmpty()) {
-                            appendLine("\n🎣 Hook (أول 3 ثواني):")
-                            appendLine("  \"$hookText\"")
-                            if (hookReason.isNotEmpty()) appendLine("  💡 $hookReason")
-                        }
-                        if (engageText.isNotEmpty()) {
-                            appendLine("\n💬 نص التفاعل (المنتصف):")
-                            appendLine("  \"$engageText\"")
-                        }
-                        if (ctaText.isNotEmpty()) {
-                            appendLine("\n📢 نداء للعمل (النهاية):")
-                            appendLine("  \"$ctaText\"")
+                        segments.forEachIndexed { idx, s ->
+                            val from = (s.startPct * durationSec).toInt()
+                            val to = (s.endPct * durationSec).toInt()
+                            val label = if (s.purpose.isNotEmpty()) s.purpose else "نص ${idx + 1}"
+                            appendLine("\n• $label (${from}-${to}ث):")
+                            appendLine("  \"${s.text}\"")
                         }
                         if (algoBoost.isNotEmpty()) {
                             appendLine("\n🚀 تأثير على الخوارزمية:")
@@ -311,33 +319,31 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Burn Hook/Engagement/CTA text onto the video locally using Media3 Transformer. */
+    /** Burn the dynamic list of text overlays onto the video using Media3 Transformer. */
     @OptIn(UnstableApi::class)
     private suspend fun renderOverlaysOnDevice(
         inputUri: Uri,
-        hook: String,
-        engage: String,
-        cta: String,
+        segments: List<OverlaySegment>,
         durationSec: Int,
         outFile: File
     ) = suspendCoroutine<Unit> { cont ->
         val durationUs = if (durationSec > 0) durationSec * 1_000_000L else 30_000_000L
-        val hookEnd = minOf(3_000_000L, (durationUs * 0.2).toLong())
-        val engStart = (durationUs * 0.4).toLong()
-        val engEnd = (durationUs * 0.7).toLong()
-        val ctaStart = if (durationUs > 3_000_000L) durationUs - 3_000_000L else (durationUs * 0.8).toLong()
 
-        // One overlay per non-empty text, visible only inside its time window.
+        // One overlay per segment, each visible only inside its own time window.
         val overlays = ArrayList<TextureOverlay>()
-        if (hook.isNotEmpty())
-            overlays.add(WindowedTextOverlay(hook, 0L, hookEnd, topAnchorY = 0.75f))
-        if (engage.isNotEmpty())
-            overlays.add(WindowedTextOverlay(engage, engStart, engEnd, topAnchorY = -0.75f))
-        if (cta.isNotEmpty())
-            overlays.add(WindowedTextOverlay(cta, ctaStart, durationUs, topAnchorY = 0.75f))
+        for (s in segments) {
+            val startUs = (s.startPct.coerceIn(0f, 1f) * durationUs).toLong()
+            var endUs = (s.endPct.coerceIn(0f, 1f) * durationUs).toLong()
+            if (endUs <= startUs) endUs = (startUs + 2_000_000L).coerceAtMost(durationUs)
+            val anchorY = when (s.position) {
+                "bottom" -> -0.75f
+                "center" -> 0.0f
+                else -> 0.75f
+            }
+            overlays.add(WindowedTextOverlay(s.text, startUs, endUs, anchorY))
+        }
 
         if (overlays.isEmpty()) {
-            // Nothing to draw — just copy the original through
             cont.resumeWith(Result.failure(Exception("لا توجد نصوص لإضافتها")))
             return@suspendCoroutine
         }
@@ -541,6 +547,15 @@ class MainActivity : AppCompatActivity() {
         else "✅ تحليل مكتمل"
     }
 }
+
+/** One dynamic on-screen text segment decided by the server analysis. */
+data class OverlaySegment(
+    val text: String,
+    val startPct: Float,
+    val endPct: Float,
+    val position: String,
+    val purpose: String
+)
 
 /**
  * A text overlay shown only within [startUs, endUs]. Outside the window it stays
