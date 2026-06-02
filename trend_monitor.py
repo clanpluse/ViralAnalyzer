@@ -96,7 +96,7 @@ def github_update_file(path, content, sha, message):
         return False
 
 
-def apify_search_hashtag(hashtag, limit=25):
+def apify_search_hashtag(hashtag, limit=12):
     """Run the Apify TikTok scraper for a hashtag and return dataset items."""
     if not APIFY_TOKEN:
         print("  APIFY_TOKEN not set — skipping Apify call")
@@ -150,7 +150,7 @@ def collect_viral_videos(niche):
 
     tags = NICHE_HASHTAGS.get(niche, NICHE_HASHTAGS["عام"])
     for tag in tags:  # try tags in order, stop once we have enough results
-        items = apify_search_hashtag(tag, limit=25)
+        items = apify_search_hashtag(tag, limit=12)
         for it in items:
             vid = it.get('id') or it.get('webVideoUrl')
             if not vid or vid in seen_ids:
@@ -171,7 +171,7 @@ def collect_viral_videos(niche):
                 "hashtags": [h.get('name') for h in (it.get('hashtags') or []) if h.get('name')],
             })
         # Stop once we have enough usable results (keeps Apify cost/time low)
-        if len(all_videos) >= 15:
+        if len(all_videos) >= 10:
             break
         time.sleep(1)
 

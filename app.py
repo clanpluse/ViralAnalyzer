@@ -364,21 +364,23 @@ def run_trend_monitor():
 
 
 def start_scheduler():
-    """Start background scheduler for daily trend updates."""
+    """Auto trend updates are DISABLED by default to protect the Apify budget.
+    Trends are refreshed only via manual /run-trends. To re-enable a daily
+    schedule, set env TREND_AUTO=1."""
+    if (os.environ.get('TREND_AUTO') or '').strip() != '1':
+        print("Trend auto-scheduler disabled (manual /run-trends only)")
+        return
+
     schedule.every().day.at("03:00").do(run_trend_monitor)
-    schedule.every().day.at("15:00").do(run_trend_monitor)
 
     def run():
-        # Run once at startup after 2 minutes
-        time.sleep(120)
-        run_trend_monitor()
         while True:
             schedule.run_pending()
             time.sleep(60)
 
     thread = threading.Thread(target=run, daemon=True)
     thread.start()
-    print("Trend monitor scheduler started (runs at 3AM and 3PM daily)")
+    print("Trend auto-scheduler enabled (daily 03:00)")
 
 
 @app.route('/analyze', methods=['POST'])
@@ -729,7 +731,7 @@ def health():
     trend_data = load_trend_data("عام")
     return jsonify({
         "status": "ok",
-        "version": "apify-trends-1",
+        "version": "apify-safe-1",
         "ffmpeg": _FFMPEG_BIN,
         "apify_configured": bool((os.environ.get('APIFY_TOKEN') or '').strip()),
         "github_configured": bool((os.environ.get('GITHUB_TOKEN') or '').strip()),
@@ -784,6 +786,11 @@ def run_one():
     """Run trend analysis for ONE niche synchronously and report every step."""
     niche = request.args.get('niche', 'تصاميم منزلية وديكور')
     steps = {"niche": niche}
+    if request.args.get('force') != '1':
+        hrs = _hours_since_last_trend()
+        if hrs is not None and hrs < TREND_COOLDOWN_HOURS:
+            return jsonify({"status": "cooldown",
+                            "message": f"آخر تحديث قبل {hrs:.1f} ساعة (الحد {TREND_COOLDOWN_HOURS}). أضف force=1 للتجاوز."}), 429
     try:
         import trend_monitor as tm
         videos, basis = tm.collect_viral_videos(niche)
@@ -821,24 +828,49 @@ def run_one():
         return jsonify({**steps, "error": f"{type(e).__name__}: {str(e)[:300]}"}), 500
 
 
-_trend_run_state = {"running": False, "last": "", "error": "", "github_write": ""}
+_trend_run_state = {"running": False, "last": "", "error": ""}
+
+# Minimum hours between trend refreshes (protects the Apify budget)
+TREND_COOLDOWN_HOURS = int(os.environ.get('TREND_COOLDOWN_HOURS', '12'))
+
+
+def _hours_since_last_trend():
+    """Return hours since the most recent trends.json update, or None if never."""
+    try:
+        from trend_monitor import github_get_file
+        content, _ = github_get_file('data/trends.json')
+        if not content:
+            return None
+        data = json.loads(content)
+        newest = None
+        for v in data.values():
+            lu = v.get('last_updated')
+            if lu:
+                t = datetime.fromisoformat(lu)
+                newest = t if (newest is None or t > newest) else newest
+        if newest is None:
+            return None
+        return (datetime.now() - newest).total_seconds() / 3600.0
+    except Exception:
+        return None
 
 
 @app.route('/run-trends', methods=['GET', 'POST'])
 def run_trends():
     """Trigger Apify trend analysis (POST) or read last-run status (GET)."""
     if request.method == 'GET':
-        # Probe GitHub write capability so we can tell token/permission issues apart
-        try:
-            from trend_monitor import github_get_file
-            content, sha = github_get_file('data/_write_test.txt')
-            from trend_monitor import github_update_file
-            ok = github_update_file('data/_write_test.txt',
-                                    f"ok {datetime.now().isoformat()}", sha, "write test")
-            _trend_run_state["github_write"] = "success" if ok else "FAILED (token/permission?)"
-        except Exception as e:
-            _trend_run_state["github_write"] = f"error: {e}"
-        return jsonify(_trend_run_state)
+        return jsonify({**_trend_run_state,
+                        "hours_since_last": _hours_since_last_trend(),
+                        "cooldown_hours": TREND_COOLDOWN_HOURS})
+
+    # Budget guard: refuse if refreshed too recently (override with ?force=1)
+    if request.args.get('force') != '1':
+        hrs = _hours_since_last_trend()
+        if hrs is not None and hrs < TREND_COOLDOWN_HOURS:
+            return jsonify({
+                "status": "cooldown",
+                "message": f"آخر تحديث قبل {hrs:.1f} ساعة. الحد الأدنى {TREND_COOLDOWN_HOURS} ساعة. أضف force=1 للتجاوز.",
+            }), 429
 
     if _trend_run_state["running"]:
         return jsonify({"status": "already_running"}), 202
