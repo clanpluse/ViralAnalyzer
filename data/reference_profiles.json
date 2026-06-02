@@ -1,11 +1,11 @@
 {
   "تصاميم منزلية وديكور": {
-    "why_viral": "الفيديو يعرض تحولاً بصرياً درامياً من زوايا مختلفة لنفس المساحة، مما يخلق فضولاً وإعجاباً فوري بالتصميم الفاخر. استهداف سوق مصري محدد (القاهرة والشيخ زايد) مع دعوة واضحة للعمل (DM) يزيد التحويل والمشاركة.",
-    "hook_style": "اللقطة الأولى تظهر زاوية قريبة من الكراسي الأنيقة مع إضاءة دافئة ناعمة، تجذب الانتباه فوراً للتفاصيل الفاخرة والألوان المحايدة الراقية.",
+    "why_viral": "الفيديو يعرض تحويلاً بصرياً متدرجاً لنفس الفراغ مع إضاءة درامية وأثاث فاخر، مما يخلق شعوراً بالترقب والرغبة. استهداف مباشر للجمهور الراقي المهتم بالعقارات الفاخرة والديكور الحديث في مصر، مع CTA واضح وبيانات الاتصال المباشرة.",
+    "hook_style": "اللقطة الأولى تظهر غرفة معيشة فارغة نسبياً بإضاءة دافئة وكنب بسيط، ثم تتطور تدريجياً بإضافة أثاث وتحسينات بصرية، مما يثير فضول المشاهد لرؤية النتيجة النهائية.",
     "onscreen_texts": [
       "The living room set you've been waiting for",
       "where comfort meets refined craftsmanship",
-      "✅ Custom-made to match your space",
+      "✅ Custom-made to match your space and lifestyle",
       "✅ Available in a wide range of colors & fabrics",
       "✅ Made to order using high-quality materials",
       "✅ Nationwide delivery across Egypt",
@@ -13,50 +13,50 @@
       "📩 DM us now for price & customization details",
       "📞 01501560301"
     ],
-    "text_style": "نصوص بيضاء نظيفة على خلفية شبه شفافة، موضوعة في الأسفل أو الجانب. قصيرة وجريئة في البداية (Hook)، ثم قائمة مرقمة بـ checkmark emojis توحي بالمصداقية والاحترافية. النبرة فاخرة لكن ودية.",
-    "pacing": "بطيء وانسيابي جداً - كل لقطة تأخذ حوالي 1.5-2 ثانية، مما يسمح للمشاهد بامتصاص التفاصيل والإضاءة. انتقالات سلسة بدون قطع حادة. الموسيقى الخلفية (غير مسموعة بالوصف) تبدو هادئة وأنيقة.",
-    "caption_formula": "[Hook عاطفي/رغبة] — [وصف قصير للمنتج] ✨ [5-6 فوائد بصيغة checkmarks] 📩 [CTA واضح مع معلومات التواصل] #[هاشتاجات_نخبوية_وجغرافية]",
+    "text_style": "نصوص قصيرة وموجزة، نبرة احترافية وحصرية، موضوعة في أسفل وأعلى الشاشة، استخدام رموز إيموجي لجذب الانتباه (✨، ✅، 📞)، الخط بريق وحديث يتناسب مع الفخامة",
+    "pacing": "سرعة بطيئة وهادئة (7 ثوان كاملة)، 4 لقطات ثابتة تقريباً من زوايا مختلفة، انتقالات سلسة وناعمة، تركيز على الإضاءة المتغيرة والتفاصيل، إيقاع يسمح بامتصاص الجمال والفخامة",
+    "caption_formula": "[سؤال جاذب + وصف المنتج + قائمة فوائد بتنسيق نقاط] + [عبارة عمل مباشرة] + [معلومات الاتصال + هاشتاجات استهدافية للسوق المحلي والفئة الراقية]",
     "overlay_template": [
       {
-        "purpose": "Hook الرئيسي",
-        "position": "bottom-center",
+        "purpose": "Hook رئيسي",
+        "position": "top-center",
         "start_pct": 0.0,
         "end_pct": 0.3,
-        "style_note": "نص أبيض عريض (28-32px)، جملة واحدة أو جملتان قصيرتان، تثير الرغبة والفضول الفوري"
+        "style_note": "نص كبير وسميك يسأل: هل تبحث عن...؟ لجذب الانتباه الفوري"
       },
       {
-        "purpose": "وصف المنتج الثانوي",
-        "position": "bottom-center",
-        "start_pct": 0.25,
-        "end_pct": 0.5,
-        "style_note": "نص أبيض متوسط (20-24px)، جملة وصفية رقيقة، تعمق الفكرة الأولى"
+        "purpose": "شرح المميزات",
+        "position": "bottom-right",
+        "start_pct": 0.15,
+        "end_pct": 0.7,
+        "style_note": "قائمة بعلامات صح ✅، كل عنصر يظهر بالتدريج مع تطور الفيديو"
       },
       {
-        "purpose": "قائمة الفوائد",
+        "purpose": "CTA قوي",
         "position": "bottom-center",
-        "start_pct": 0.4,
-        "end_pct": 0.85,
-        "style_note": "✅ emojis + نص أبيض (18-20px)، سطر واحد لكل فائدة، توضع بتسلسل سريع"
-      },
-      {
-        "purpose": "Call-to-Action",
-        "position": "bottom-center",
-        "start_pct": 0.75,
+        "start_pct": 0.6,
         "end_pct": 1.0,
-        "style_note": "رقم الهاتف + DM emoji، نص متوسط (20px)، واضح وسهل القراءة والذاكرة"
+        "style_note": "بيانات التواصل والرقم بخط كبير، لون متباين (أبيض/ذهبي) على خلفية نصف شفافة"
+      },
+      {
+        "purpose": "علامات المصداقية",
+        "position": "top-right",
+        "start_pct": 0.5,
+        "end_pct": 1.0,
+        "style_note": "هاشتاجات محلية وعلامات تجارية (#NewCairo #SheikhZayed) لاستهداف جغرافي دقيق"
       }
     ],
-    "summary": "الوصفة الفائزة = فيديو بطيء الإيقاع يعرض منتجاً فاخراً من زوايا متعددة + إضاءة احترافية دافئة + Hook عاطفي في البداية + قائمة checkmarks للفوائس الملموسة + CTA صريح بمعلومات واضحة + هاشتاجات موضعية واجتماعية عالية الاستهداف. المفتاح: إظهار الجودة والتفاصيل ببطء، بناء الثقة بـ social proof (الخيارات المتاحة)، وتسهيل الاتصال المباشر.",
+    "summary": "الوصفة الفائزة تعتمد على: (1) عرض بصري تدريجي يخلق توقع وترقب - البدء بحالة بسيطة والتطور نحو الفخامة (2) إضاءة احترافية ودراماتيكية تبرز جودة المنتج (3) نصوص موجزة وقوية بنبرة حصرية (4) هاشتاجات استهداف محلي وفئات عمرية راقية (5) CTA مباشر وواضح (رقم الهاتف، DM) (6) عدم استخدام موسيقى صاخبة - التركيز على الهدوء والأناقة (7) اللقطات الثابتة أو الحركة البطيئة تعكس الفخامة والجودة",
     "source_url": "https://vt.tiktok.com/ZSxwmXfoR/",
     "source_meta": {
       "title": "The living room set you’ve been waiting for — where comfort meets refined craftsmanship. Designed to elevate your space with premium upholstery, balanced proportions, and timeless elegance. ✨ Custom-made to match your space and lifestyle. ✅ Available in a wide range of colors & fabrics ✅ Made to order using high-quality materials ✅ Nationwide delivery across Egypt ✅ Professional assembly available 📩 DM us now for price & customization details 📞 01501560301 #WakanFurniture #LuxuryLivingRoom #CustomLivingRoom #ModernInteriors #ElegantLiving #HighEndFurniture #LuxuryHomesEgypt #CairoLuxury #NewCairo #SheikhZayed #BespokeDesign #LivingRoomGoals #PremiumLiving",
-      "play_count": 1332880,
+      "play_count": 1332877,
       "digg_count": 23081,
       "comment_count": 47,
       "share_count": 8800,
       "duration": 7,
       "author": "wakanfurniture_"
     },
-    "analyzed_at": "2026-06-02T17:14:35.433614"
+    "analyzed_at": "2026-06-02T17:36:31.117715"
   }
 }
