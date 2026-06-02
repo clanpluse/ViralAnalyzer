@@ -21,12 +21,6 @@ RECENT_HOURS = int(os.environ.get('TREND_RECENT_HOURS', '24'))
 NICHES = [
     "تصاميم منزلية وديكور",
     "تسويق منتجات",
-    "أزياء وموضة",
-    "طعام ومطاعم",
-    "تقنية وإلكترونيات",
-    "رياضة ولياقة",
-    "سفر وسياحة",
-    "عام",
 ]
 
 # Hashtags to search per niche (mix of Arabic + English to surface real trends)

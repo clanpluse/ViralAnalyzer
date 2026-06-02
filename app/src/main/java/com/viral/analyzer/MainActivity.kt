@@ -112,13 +112,7 @@ class MainActivity : AppCompatActivity() {
 
         val niches = listOf(
             "تصاميم منزلية وديكور",
-            "تسويق منتجات",
-            "أزياء وموضة",
-            "طعام ومطاعم",
-            "تقنية وإلكترونيات",
-            "رياضة ولياقة",
-            "سفر وسياحة",
-            "عام"
+            "تسويق منتجات"
         )
         spinnerNiche.adapter = ArrayAdapter(
             this, android.R.layout.simple_spinner_dropdown_item, niches
