@@ -795,7 +795,7 @@ def analyze_reference_video(url, niche):
 }}
 JSON فقط."""})
 
-        resp = call_claude(content, max_tokens=1500)
+        resp = call_claude(content, max_tokens=2500)
         if not resp:
             return None, "فشل تحليل Claude"
         text = resp.strip()
@@ -803,6 +803,10 @@ JSON فقط."""})
             text = text.split("```")[1]
             if text.startswith("json"):
                 text = text[4:]
+        # isolate the JSON object
+        s, e = text.find("{"), text.rfind("}")
+        if s != -1 and e != -1 and e > s:
+            text = text[s:e + 1]
         profile = json.loads(text)
         profile['source_url'] = url
         profile['source_meta'] = meta
