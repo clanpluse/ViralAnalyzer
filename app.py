@@ -729,11 +729,36 @@ def health():
     trend_data = load_trend_data("عام")
     return jsonify({
         "status": "ok",
-        "version": "ondevice-ar-1",
+        "version": "apify-trends-1",
         "ffmpeg": _FFMPEG_BIN,
+        "apify_configured": bool((os.environ.get('APIFY_TOKEN') or '').strip()),
         "trends_loaded": bool(trend_data),
         "trends_updated": trend_data.get('last_updated', 'N/A')[:10] if trend_data else 'N/A'
     })
+
+
+_trend_run_state = {"running": False, "last": ""}
+
+
+@app.route('/run-trends', methods=['GET', 'POST'])
+def run_trends():
+    """Manually trigger an Apify-based trend analysis in the background."""
+    if _trend_run_state["running"]:
+        return jsonify({"status": "already_running", "last": _trend_run_state["last"]}), 202
+
+    def _job():
+        _trend_run_state["running"] = True
+        try:
+            from trend_monitor import run_trend_analysis
+            run_trend_analysis()
+            _trend_run_state["last"] = datetime.now().isoformat()
+        except Exception as e:
+            print(f"run-trends error: {e}")
+        finally:
+            _trend_run_state["running"] = False
+
+    threading.Thread(target=_job, daemon=True).start()
+    return jsonify({"status": "started"}), 200
 
 
 @app.route('/test-claude', methods=['GET'])

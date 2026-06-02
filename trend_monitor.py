@@ -1,15 +1,22 @@
 import os
 import sys
 import json
-import subprocess
-import requests
+import time
 import base64
-from datetime import datetime
-from anthropic import Anthropic
+import requests
+from datetime import datetime, timezone, timedelta
 
 GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN')
 GITHUB_REPO = "clanpluse/ViralAnalyzer"
 ANTHROPIC_API_KEY = (os.environ.get('ANTHROPIC_API_KEY') or '').strip()
+APIFY_TOKEN = (os.environ.get('APIFY_TOKEN') or '').strip()
+
+# Apify TikTok scraper actor (clockworks). run-sync returns dataset items directly.
+APIFY_ACTOR = os.environ.get('APIFY_ACTOR', 'clockworks~tiktok-scraper')
+
+# Minimum views in the last 24h to consider a video "viral"
+MIN_VIEWS = int(os.environ.get('TREND_MIN_VIEWS', '50000'))
+RECENT_HOURS = int(os.environ.get('TREND_RECENT_HOURS', '24'))
 
 NICHES = [
     "تصاميم منزلية وديكور",
@@ -19,11 +26,23 @@ NICHES = [
     "تقنية وإلكترونيات",
     "رياضة ولياقة",
     "سفر وسياحة",
-    "عام"
+    "عام",
 ]
 
+# Hashtags to search per niche (mix of Arabic + English to surface real trends)
+NICHE_HASHTAGS = {
+    "تصاميم منزلية وديكور": ["ديكور", "homedecor", "interiordesign"],
+    "تسويق منتجات": ["تسويق", "marketing", "smallbusiness"],
+    "أزياء وموضة": ["موضة", "fashion", "ootd"],
+    "طعام ومطاعم": ["طبخ", "food", "recipe"],
+    "تقنية وإلكترونيات": ["تقنية", "tech", "gadgets"],
+    "رياضة ولياقة": ["رياضة", "fitness", "gym"],
+    "سفر وسياحة": ["سفر", "travel", "tourism"],
+    "عام": ["fyp", "viral", "اكسبلور"],
+}
 
-def call_claude(prompt, max_tokens=1000):
+
+def call_claude(prompt, max_tokens=1200):
     """Call Claude API directly via requests."""
     for attempt in range(3):
         try:
@@ -49,7 +68,6 @@ def call_claude(prompt, max_tokens=1000):
             print(f"  Claude attempt {attempt+1} failed: {e}")
             if attempt == 2:
                 return None
-            import time
             time.sleep(3)
     return None
 
@@ -58,7 +76,7 @@ def github_get_file(path):
     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}"
     headers = {"Authorization": f"token {GITHUB_TOKEN}"}
     try:
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, timeout=30)
         if response.status_code == 200:
             data = response.json()
             content = base64.b64decode(data['content']).decode('utf-8')
@@ -70,111 +88,144 @@ def github_get_file(path):
 
 def github_update_file(path, content, sha, message):
     url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{path}"
-    headers = {
-        "Authorization": f"token {GITHUB_TOKEN}",
-        "Content-Type": "application/json"
-    }
+    headers = {"Authorization": f"token {GITHUB_TOKEN}", "Content-Type": "application/json"}
     encoded = base64.b64encode(content.encode('utf-8')).decode('utf-8')
     body = {"message": message, "content": encoded}
     if sha:
         body["sha"] = sha
     try:
-        response = requests.put(url, headers=headers, json=body)
+        response = requests.put(url, headers=headers, json=body, timeout=30)
         return response.status_code in [200, 201]
-    except Exception:
+    except Exception as e:
+        print(f"  GitHub update failed: {e}")
         return False
 
 
-# Known real TikTok accounts per niche
-KNOWN_ACCOUNTS = {
-    "تصاميم منزلية وديكور": ["do.it.yourself.home", "homedesignideas", "interiordesign", "architectlife", "homedecortiktok"],
-    "تسويق منتجات": ["garyvee", "alexhormozi", "marketingmax", "socialmediaexaminer", "hubspot"],
-    "أزياء وموضة": ["voguemagazine", "fashionnova", "zara", "hm", "fashiontiktok"],
-    "طعام ومطاعم": ["gordonramsay", "tasty", "nytcooking", "bingingwithbabish", "food52"],
-    "تقنية وإلكترونيات": ["mkbhd", "unboxtherapy", "technewsday", "linus_tech", "verge"],
-    "رياضة ولياقة": ["cristiano", "nike", "gymtok", "fitnesstok", "healthtips"],
-    "سفر وسياحة": ["natgeotravel", "lonelyplanet", "traveltiktok", "wanderlust", "backpacking"],
-    "عام": ["khaby.lame", "charlidamelio", "addisonre", "bellapoarch", "zachking"]
-}
-
-
-def discover_trending_accounts(niche):
-    """Return known real TikTok accounts for a niche."""
-    print(f"  Loading known accounts for: {niche}")
-    accounts = KNOWN_ACCOUNTS.get(niche, KNOWN_ACCOUNTS["عام"])
-    print(f"  Using {len(accounts)} known accounts: {accounts}")
-    return accounts
-
-
-def get_account_videos(username, count=10):
-    """Get recent videos from a TikTok account."""
-    try:
-        result = subprocess.run(
-            [sys.executable, "-m", "yt_dlp",
-             "--flat-playlist", "--dump-json",
-             "--playlist-end", str(count),
-             "--no-warnings", "--no-cache-dir",
-             f"https://www.tiktok.com/@{username}"],
-            capture_output=True, text=True, timeout=60
-        )
-        videos = []
-        for line in result.stdout.strip().split('\n'):
-            if line.strip():
-                try:
-                    videos.append(json.loads(line))
-                except Exception:
-                    pass
-        return videos
-    except Exception as e:
-        print(f"  Error fetching @{username}: {e}")
+def apify_search_hashtag(hashtag, limit=25):
+    """Run the Apify TikTok scraper for a hashtag and return dataset items."""
+    if not APIFY_TOKEN:
+        print("  APIFY_TOKEN not set — skipping Apify call")
         return []
+    url = (f"https://api.apify.com/v2/acts/{APIFY_ACTOR}"
+           f"/run-sync-get-dataset-items?token={APIFY_TOKEN}")
+    payload = {
+        "hashtags": [hashtag],
+        "resultsPerPage": limit,
+        "shouldDownloadVideos": False,
+        "shouldDownloadCovers": False,
+        "shouldDownloadSubtitles": False,
+        "proxyCountryCode": "None",
+    }
+    try:
+        r = requests.post(url, json=payload, timeout=240)
+        if r.status_code in (200, 201):
+            items = r.json()
+            print(f"  Apify '{hashtag}': {len(items)} items")
+            return items if isinstance(items, list) else []
+        print(f"  Apify error {r.status_code}: {r.text[:200]}")
+    except Exception as e:
+        print(f"  Apify request failed: {e}")
+    return []
 
 
-def analyze_account_patterns(niche, accounts_data):
-    """Analyze patterns from multiple accounts' videos."""
-    if not accounts_data:
+def _parse_time(item):
+    iso = item.get('createTimeISO') or ''
+    try:
+        return datetime.fromisoformat(iso.replace('Z', '+00:00'))
+    except Exception:
+        ts = item.get('createTime')
+        if ts:
+            try:
+                return datetime.fromtimestamp(int(ts), tz=timezone.utc)
+            except Exception:
+                return None
         return None
 
-    summaries = []
-    for account, videos in accounts_data.items():
-        if videos:
-            summaries.append({
-                "account": account,
-                "video_count": len(videos),
-                "sample_titles": [v.get('title', '')[:80] for v in videos[:3]],
-                "avg_duration": sum(v.get('duration', 0) for v in videos) / max(len(videos), 1)
-            })
 
-    if not summaries:
+def collect_viral_videos(niche):
+    """Search the niche's hashtags, return recent high-view videos."""
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=RECENT_HOURS)
+    seen_ids = set()
+    recent_viral = []
+    all_videos = []
+
+    for tag in NICHE_HASHTAGS.get(niche, NICHE_HASHTAGS["عام"]):
+        items = apify_search_hashtag(tag)
+        for it in items:
+            vid = it.get('id') or it.get('webVideoUrl')
+            if not vid or vid in seen_ids:
+                continue
+            seen_ids.add(vid)
+            views = it.get('playCount') or 0
+            ctime = _parse_time(it)
+            rec = {
+                "id": vid,
+                "caption": (it.get('text') or '')[:200],
+                "views": views,
+                "likes": it.get('diggCount') or 0,
+                "comments": it.get('commentCount') or 0,
+                "shares": it.get('shareCount') or 0,
+                "duration": (it.get('videoMeta') or {}).get('duration', 0),
+                "author": (it.get('authorMeta') or {}).get('name', ''),
+                "hashtags": [h.get('name') for h in (it.get('hashtags') or []) if h.get('name')],
+                "created": ctime.isoformat() if ctime else '',
+            }
+            all_videos.append(rec)
+            if ctime and ctime >= cutoff and views >= MIN_VIEWS:
+                recent_viral.append(rec)
+        time.sleep(1)
+
+    # Prefer recent+viral; if too few, fall back to top by views overall
+    if len(recent_viral) >= 3:
+        chosen = sorted(recent_viral, key=lambda x: x["views"], reverse=True)[:15]
+        basis = f"آخر {RECENT_HOURS} ساعة بأكثر من {MIN_VIEWS} مشاهدة"
+    else:
+        chosen = sorted(all_videos, key=lambda x: x["views"], reverse=True)[:15]
+        basis = "الأعلى مشاهدة (لم تتوفر فيديوهات كافية ضمن النافذة الزمنية)"
+    return chosen, basis
+
+
+def analyze_patterns(niche, videos, basis):
+    """Ask Claude to extract winning patterns (Arabic) from real viral videos."""
+    if not videos:
         return None
 
-    prompt = f"""أنت خبير في خوارزميات TikTok.
+    sample = [{
+        "caption": v["caption"],
+        "views": v["views"],
+        "likes": v["likes"],
+        "comments": v["comments"],
+        "shares": v["shares"],
+        "duration_sec": int(v["duration"] or 0),
+        "hashtags": v["hashtags"][:8],
+    } for v in videos]
 
-حلل هذه البيانات من حسابات رائجة في مجال "{niche}":
+    prompt = f"""أنت خبير في خوارزميات TikTok لعام 2025.
 
-{json.dumps(summaries, ensure_ascii=False, indent=2)}
+هذه بيانات فيديوهات حقيقية رائجة الآن في مجال "{niche}" ({basis}):
 
-أعطني تحليلاً دقيقاً بصيغة JSON فقط:
+{json.dumps(sample, ensure_ascii=False, indent=2)}
+
+ادرس الكابشن والمشاهدات والتفاعل والمدد والهاشتاقات، واستخرج الأنماط الفائزة الحقيقية.
+أعطني تحليلاً عربياً دقيقاً بصيغة JSON فقط:
 {{
-  "optimal_duration_seconds": (المدة المثالية بالثواني كرقم),
-  "hook_patterns": ["نمط الـ Hook 1", "نمط 2", "نمط 3"],
-  "hook_text_examples": ["مثال جملة افتتاحية 1", "مثال 2", "مثال 3"],
-  "content_tips": ["نصيحة 1", "نصيحة 2", "نصيحة 3"],
-  "caption_formula": "صيغة الكابشن الناجح",
-  "text_overlay_tips": ["نصيحة نص على الشاشة 1", "نصيحة 2"],
+  "optimal_duration_seconds": (المدة المثالية بالثواني كرقم بناءً على المتوسط المرجّح للأنجح),
+  "hook_patterns": ["نمط افتتاحي ناجح 1", "نمط 2", "نمط 3"],
+  "hook_text_examples": ["مثال جملة افتتاحية عربية مقتبسة/مستوحاة 1", "مثال 2", "مثال 3"],
+  "content_tips": ["نصيحة محتوى مبنية على ما نجح 1", "نصيحة 2", "نصيحة 3"],
+  "caption_formula": "صيغة الكابشن الناجح في هذا المجال",
   "trending_hashtags": ["هاشتاق1", "هاشتاق2", "هاشتاق3", "هاشتاق4", "هاشتاق5"],
-  "best_posting_times": "أفضل أوقات النشر",
-  "engagement_triggers": ["محفز 1", "محفز 2", "محفز 3"],
-  "avoid": ["تجنب 1", "تجنب 2"],
-  "virality_formula": "معادلة الانتشار لهذا المجال"
+  "best_posting_times": "أفضل أوقات النشر المقترحة",
+  "engagement_triggers": ["محفز تفاعل 1", "محفز 2", "محفز 3"],
+  "avoid": ["تجنّب 1", "تجنّب 2"],
+  "virality_formula": "معادلة الانتشار المستخلصة لهذا المجال"
 }}
 
-JSON فقط."""
+JSON فقط بدون أي نص إضافي."""
 
-    response = call_claude(prompt, max_tokens=1200)
+    response = call_claude(prompt, max_tokens=1300)
     if not response:
         return None
-
     try:
         text = response.strip()
         if "```" in text:
@@ -188,80 +239,68 @@ JSON فقط."""
 
 
 def run_trend_analysis():
-    """Main function: discover accounts, analyze trends, save report."""
+    """Main: for each niche, fetch real viral videos via Apify, extract patterns, save."""
     print(f"\n{'='*50}")
-    print(f"Trend Analysis: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    print(f"Trend Analysis (Apify): {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     print(f"{'='*50}")
 
+    if not APIFY_TOKEN:
+        print("APIFY_TOKEN missing — aborting trend analysis.")
+        return
+
     trends_data = {}
-    report = {
-        "generated_at": datetime.now().isoformat(),
-        "niches": {}
-    }
+    report = {"generated_at": datetime.now().isoformat(), "niches": {}}
 
     for niche in NICHES:
-        print(f"\n📊 Analyzing: {niche}")
-
-        # 1. Discover trending accounts
-        accounts = discover_trending_accounts(niche)
-        if not accounts:
-            print(f"  ⚠️ No accounts found")
+        print(f"\n📊 {niche}")
+        try:
+            videos, basis = collect_viral_videos(niche)
+        except Exception as e:
+            print(f"  collect error: {e}")
+            continue
+        if not videos:
+            print("  no videos collected")
             continue
 
-        # 2. Fetch videos from accounts
-        accounts_data = {}
-        successful_accounts = []
-        for account in accounts:
-            print(f"  📥 Fetching @{account}...")
-            videos = get_account_videos(account, count=8)
-            if videos:
-                accounts_data[account] = videos
-                successful_accounts.append({
-                    "username": account,
-                    "videos_analyzed": len(videos)
-                })
-                print(f"  ✅ Got {len(videos)} videos from @{account}")
-            else:
-                print(f"  ❌ No videos from @{account}")
-
-        if not accounts_data:
-            print(f"  ⚠️ No data collected")
+        patterns = analyze_patterns(niche, videos, basis)
+        if not patterns:
+            print("  no patterns extracted")
             continue
 
-        # 3. Analyze patterns
-        print(f"  🧠 Analyzing patterns from {len(accounts_data)} accounts...")
-        patterns = analyze_account_patterns(niche, accounts_data)
+        patterns['last_updated'] = datetime.now().isoformat()
+        patterns['videos_analyzed'] = len(videos)
+        patterns['basis'] = basis
+        trends_data[niche] = patterns
 
-        if patterns:
-            patterns['last_updated'] = datetime.now().isoformat()
-            patterns['accounts_analyzed'] = len(accounts_data)
-            patterns['videos_analyzed'] = sum(len(v) for v in accounts_data.values())
-            trends_data[niche] = patterns
+        # Build report entry
+        top_authors = {}
+        for v in videos:
+            a = v.get('author') or ''
+            if a:
+                top_authors[a] = top_authors.get(a, 0) + 1
+        report["niches"][niche] = {
+            "accounts": [{"username": a, "videos_analyzed": c}
+                         for a, c in sorted(top_authors.items(), key=lambda x: -x[1])[:5]],
+            "total_videos": len(videos),
+            "key_finding": patterns.get('virality_formula', ''),
+            "optimal_duration": patterns.get('optimal_duration_seconds', 0),
+            "top_hashtags": patterns.get('trending_hashtags', [])[:5],
+        }
+        print(f"  ✅ analyzed {len(videos)} videos")
 
-            report["niches"][niche] = {
-                "accounts": successful_accounts,
-                "total_videos": patterns['videos_analyzed'],
-                "key_finding": patterns.get('virality_formula', ''),
-                "optimal_duration": patterns.get('optimal_duration_seconds', 0),
-                "top_hashtags": patterns.get('trending_hashtags', [])[:5]
-            }
-            print(f"  ✅ Done: {niche}")
-
-    # Save trends data
     if trends_data:
         content = json.dumps(trends_data, ensure_ascii=False, indent=2)
         _, sha = github_get_file('data/trends.json')
-        github_update_file('data/trends.json', content, sha,
-                          f"Update trends: {datetime.now().strftime('%Y-%m-%d')}")
-        print(f"\n✅ Trends saved")
+        ok = github_update_file('data/trends.json', content, sha,
+                                f"Update trends: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        print(f"\n{'✅' if ok else '❌'} trends.json saved")
 
-    # Save report
     if report["niches"]:
-        report_content = json.dumps(report, ensure_ascii=False, indent=2)
+        rc = json.dumps(report, ensure_ascii=False, indent=2)
         _, sha = github_get_file('data/trend_report.json')
-        github_update_file('data/trend_report.json', report_content, sha,
-                          f"Update report: {datetime.now().strftime('%Y-%m-%d')}")
-        print(f"✅ Report saved")
+        github_update_file('data/trend_report.json', rc, sha,
+                           f"Update report: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        print("✅ trend_report.json saved")
 
     print(f"\nDone: {datetime.now().strftime('%H:%M')}")
 
