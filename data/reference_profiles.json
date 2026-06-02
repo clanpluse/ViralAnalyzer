@@ -1,55 +1,60 @@
 {
   "تصاميم منزلية وديكور": {
-    "why_viral": "الفيديو يعرض تحولاً بصرياً مذهلاً من زوايا مختلفة لنفس المساحة، مما يخلق شعوراً بالاكتشاف والإعجاب المتكرر. الإضاءة الدافئة الراقية والتصميم المينيمالست الأنيق يستهدف جمهور الطبقة العليا الباحث عن الرفاهية المخصصة.",
-    "hook_style": "اللقطة الأولى تظهر زاوية جانبية للكراسي والأريكة بإضاءة ذهبية دافئة تثير الفضول - المشاهد يشعر فوراً بالرقي والهدوء، ويريد معرفة المزيد عن هذا التصميم.",
+    "why_viral": "الفيديو يعرض تحولاً بصرياً درامياً من زوايا مختلفة لنفس الفراغ، مما يخلق حس الاكتشاف والإعجاب المتكرر. التركيز على الحرفية العالية والتفاصيل الفاخرة (الإضاءة المدمجة، الأقمشة الفاخرة، الأثاث المنحني) يلبي طموح العملاء المصريين للعيش الفاخر.",
+    "hook_style": "يبدأ بلقطة قريبة من الكرسي المستدير الفاخر مع الوسائد الداكنة، مما يجذب الانتباه فوراً للتفاصيل الراقية. الإضاءة الدافئة والألوان المحايدة الهادئة تخلق شعوراً بالرفاهية والهدوء.",
     "onscreen_texts": [
       "The living room set you've been waiting for",
       "where comfort meets refined craftsmanship",
-      "✅ Custom-made to match your space and lifestyle",
-      "✅ Available in a wide range of colors & fabrics",
-      "✅ Made to order using high-quality materials",
-      "✅ Nationwide delivery across Egypt",
-      "✅ Professional assembly available",
-      "📩 DM us now for price & customization details",
-      "📞 01501560301"
+      "Custom-made to match your space and lifestyle",
+      "Available in a wide range of colors & fabrics",
+      "Made to order using high-quality materials",
+      "Nationwide delivery across Egypt",
+      "Professional assembly available"
     ],
-    "text_style": "نصوص قصيرة وموجزة تظهر تدريجياً على الشاشة بطريقة متناسقة، مع استخدام رموز إيموجي (✅، 📩، 📞) لجذب الانتباه. النبرة احترافية وحصرية مع محفزات شراء واضحة. النصوص موضوعة في الأسفل والوسط بخط أبيض واضح على خلفية شفافة.",
-    "pacing": "الإيقاع بطيء وهادئ يتماشى مع طبيعة المنتج الفاخر - كل لقطة تستغرق حوالي 1.5-2 ثانية، مع انتقالات ناعمة بين الزوايا المختلفة. لا توجد قطع حادة أو سريعة - كل شيء متدفق وأنيق يعكس جودة التصميم.",
-    "caption_formula": "[المشاعر/الطموح] + [المنتج الفاخر] + [الفائدة الرئيسية] + [نداء للعمل مع تفاصيل التواصل]. مثال: 'The living room set you've been waiting for — حيث يلتقي الراحة بالحرفية المتقنة' + قائمة المميزات + CTA.",
+    "text_style": "نصوص إنجليزية قصيرة وموجزة (جمل 6-8 كلمات)، نبرة احترافية وطموحة، موضوعة في أسفل وأعلى الشاشة بخط أبيض واضح على خلفية شفافة، تحافظ على رؤية الديكور الرئيسي",
+    "pacing": "إيقاع بطيء ومتعمد - كل لقطة تستمر 1.5-2 ثانية، مع تحول سلس بين الزوايا المختلفة (أمام، جنب، عام)، مما يسمح للمشاهد بامتصاص التفاصيل والشعور بعمق الفراغ",
+    "caption_formula": "فتح مغري (ما تنتظره) + وصف المنتج الأساسي + ثلاث مميزات ملموسة + دعوة للعمل (DM/اتصال) + هاشتاجات استهدافية جغرافية واجتماعية",
     "overlay_template": [
       {
-        "purpose": "Hook/Opening",
-        "position": "center",
+        "purpose": "Hook الأول",
+        "position": "bottom",
         "start_pct": 0.0,
         "end_pct": 0.2,
-        "style_note": "نص عاطفي قوي: 'The living room set you've been waiting for' - يخاطب الرغبة والانتظار"
+        "style_note": "عنوان قوي يجذب المشاهد الطموح: 'The living room set you've been waiting for' - يخاطب الرغبة المكبوتة"
       },
       {
-        "purpose": "Value Proposition",
+        "purpose": "وصف المنتج الرئيسي",
         "position": "bottom",
         "start_pct": 0.2,
-        "end_pct": 0.7,
-        "style_note": "قائمة بـ 4-5 نقاط مميزات مع ✅ - بسيطة وسهلة القراءة، تركز على التخصيص والجودة"
+        "end_pct": 0.4,
+        "style_note": "جملة ثنائية الأجزاء تجمع بين المشاعر والجودة: 'comfort meets refined craftsmanship'"
       },
       {
-        "purpose": "Call-to-Action",
+        "purpose": "المميزات والفوائد",
         "position": "bottom",
-        "start_pct": 0.7,
+        "start_pct": 0.4,
+        "end_pct": 0.8,
+        "style_note": "قائمة نقاط (checkmark emojis) تركز على: التخصيص + المواد + التوزيع + التجميع - كل ما يقلق العميل المصري"
+      },
+      {
+        "purpose": "CTA مباشر",
+        "position": "bottom",
+        "start_pct": 0.8,
         "end_pct": 1.0,
-        "style_note": "معلومات التواصل (DM + رقم الهاتف) بحجم واضح وملحوظ مع رموز (📩، 📞)"
+        "style_note": "معلومات الاتصال واسم العلامة التجارية + هاشتاجات موقعية قوية (NewCairo, SheikhZayed, CairoLuxury)"
       }
     ],
-    "summary": "الوصفة الفائزة: (1) تصوير بطيء وأنيق من زوايا متعددة للمنتج الفاخر (2) إضاءة دافئة ذهبية تثير الإعجاب الفوري (3) Hook عاطفي قوي في البداية ('ما كنت تنتظره') (4) قائمة منظمة من المميزات مع ✅ (5) CTA واضح مع معلومات التواصل (6) استهداف سوق محددة (الطبقة العليا في مصر) (7) المدة القصيرة (7 ثوان) تبقي المشاهد منجذباً دون ملل - كل هذا يخلق فيديو 'يجب أن أشاركه وأريده الآن'",
+    "summary": "الوصفة الفائزة: ابدأ بلقطة قريبة من التفاصيل الفاخرة لجذب الانتباه (0-2 ثانية)، ثم انتقل ببطء بين 4-5 زوايا مختلفة من نفس الفراغ (كل لقطة 1.5 ثانية) لإظهار العمق والتفاصيل. استخدم نصوصاً قصيرة وموجزة بنبرة طموحة واحترافية. ركز على المشاعر أولاً (الراحة، الأناقة) ثم الفوائد العملية (التخصيص، التوزيع). أغلق بـ CTA واضح + هاشتاجات جغرافية واجتماعية. الإضاءة الدافئة المدمجة والألوان المحايدة حاسمة لجذب الشريحة العليا المصرية.",
     "source_url": "https://vt.tiktok.com/ZSxwmXfoR/",
     "source_meta": {
       "title": "The living room set you’ve been waiting for — where comfort meets refined craftsmanship. Designed to elevate your space with premium upholstery, balanced proportions, and timeless elegance. ✨ Custom-made to match your space and lifestyle. ✅ Available in a wide range of colors & fabrics ✅ Made to order using high-quality materials ✅ Nationwide delivery across Egypt ✅ Professional assembly available 📩 DM us now for price & customization details 📞 01501560301 #WakanFurniture #LuxuryLivingRoom #CustomLivingRoom #ModernInteriors #ElegantLiving #HighEndFurniture #LuxuryHomesEgypt #CairoLuxury #NewCairo #SheikhZayed #BespokeDesign #LivingRoomGoals #PremiumLiving",
-      "play_count": 1332492,
-      "digg_count": 23079,
+      "play_count": 1332803,
+      "digg_count": 23081,
       "comment_count": 47,
       "share_count": 8799,
       "duration": 7,
       "author": "wakanfurniture_"
     },
-    "analyzed_at": "2026-06-02T16:24:50.340640"
+    "analyzed_at": "2026-06-02T17:03:42.982223"
   }
 }
