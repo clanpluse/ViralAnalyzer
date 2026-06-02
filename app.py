@@ -622,7 +622,7 @@ Real trend data for "{niche}":
   "algorithm_score_boost": "كيف تساعد هذه الطبقات الخوارزمية تحديداً (بالعربية)"
 }}"""
 
-    response = call_claude(prompt, max_tokens=900)
+    response = call_claude(prompt, max_tokens=1400)
     if not response:
         return None
 
@@ -632,8 +632,14 @@ Real trend data for "{niche}":
             text = text.split("```")[1]
             if text.startswith("json"):
                 text = text[4:]
+        # Robustly isolate the JSON object even if Claude adds prose around it
+        if not text.lstrip().startswith("{"):
+            s, e = text.find("{"), text.rfind("}")
+            if s != -1 and e != -1:
+                text = text[s:e + 1]
         return json.loads(text)
-    except Exception:
+    except Exception as e:
+        print(f"enhance JSON parse failed: {e}")
         return None
 
 
@@ -985,7 +991,7 @@ def health():
     trend_data = load_trend_data("عام")
     return jsonify({
         "status": "ok",
-        "version": "reference-async-1",
+        "version": "reference-async-2",
         "ffmpeg": _FFMPEG_BIN,
         "apify_configured": bool((os.environ.get('APIFY_TOKEN') or '').strip()),
         "github_configured": bool((os.environ.get('GITHUB_TOKEN') or '').strip()),
