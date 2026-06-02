@@ -562,8 +562,9 @@ def enhance_video(video_path, enhancements, output_path, duration=30):
     return os.path.exists(output_path) and os.path.getsize(output_path) > 0
 
 
-def generate_algorithm_enhancements(niche, title, transcript, duration):
-    """Generate algorithm-based video enhancements using Claude's knowledge."""
+def generate_algorithm_enhancements(niche, title, transcript, duration, reference=None):
+    """Generate algorithm-based video enhancements using Claude's knowledge,
+    optionally mimicking a user-analyzed reference (viral) video."""
     trend_data = load_trend_data(niche)
     trend_context = ""
     if trend_data:
@@ -573,6 +574,18 @@ Real trend data for "{niche}":
 - Successful hook patterns: {', '.join(trend_data.get('hook_patterns', [])[:3])}
 - Engagement triggers: {', '.join(trend_data.get('engagement_triggers', [])[:3])}
 """
+
+    if reference:
+        trend_context += f"""
+
+فيديو مرجعي ناجح حلّلناه في هذا المجال — **حاكِ وصفته الفائزة**:
+- لماذا نجح: {reference.get('why_viral', '')}
+- أسلوب الـ Hook: {reference.get('hook_style', '')}
+- نصوص ظهرت عليه: {' | '.join(reference.get('onscreen_texts', [])[:5])}
+- أسلوب النصوص: {reference.get('text_style', '')}
+- الإيقاع: {reference.get('pacing', '')}
+- الوصفة: {reference.get('summary', '')}
+اجعل النصوص والتوقيت والمواضع تحاكي هذا المرجع الناجح (مع تكييفها لمحتوى فيديو المستخدم)."""
 
     prompt = f"""أنت خبير في خوارزميات TikTok و Instagram Reels لعام 2025.
 
@@ -647,6 +660,187 @@ def _sanitize_overlays(raw):
     return out
 
 
+# ---------------------------------------------------------------------------
+# Reference (trend) video analysis: user supplies a TikTok/Reels URL; we resolve
+# it for free via tikwm, download the mp4, sample frames, and let Claude (vision)
+# read the on-screen text + figure out why it went viral. The resulting "profile"
+# is then used to make the user's own videos mimic that winning style.
+# ---------------------------------------------------------------------------
+
+def tikwm_resolve(url):
+    """Resolve a TikTok/Reels URL to a downloadable mp4 + metadata (free, no key)."""
+    try:
+        r = requests.get('https://www.tikwm.com/api/',
+                         params={'url': url, 'hd': 1}, timeout=40)
+        j = r.json()
+        if j.get('code') == 0:
+            return j.get('data')
+        print(f"tikwm error: {j.get('msg')}")
+    except Exception as e:
+        print(f"tikwm request failed: {e}")
+    return None
+
+
+def _download_to_temp(mp4_url):
+    path = tempfile.NamedTemporaryFile(suffix='.mp4', delete=False, dir=UPLOAD_FOLDER).name
+    try:
+        with requests.get(mp4_url, stream=True, timeout=120) as r:
+            r.raise_for_status()
+            with open(path, 'wb') as f:
+                for chunk in r.iter_content(chunk_size=1 << 16):
+                    f.write(chunk)
+        return path
+    except Exception as e:
+        print(f"download failed: {e}")
+        return None
+
+
+def _extract_frames_b64(video_path, duration, n=4):
+    """Extract n evenly-spaced frames as base64 jpegs."""
+    if duration <= 0:
+        duration = 15
+    fracs = [0.05, 0.35, 0.65, 0.95][:n]
+    out = []
+    for fr in fracs:
+        fp = extract_frame(video_path, max(0.3, duration * fr))
+        if fp and os.path.exists(fp):
+            try:
+                with open(fp, 'rb') as f:
+                    out.append(base64.b64encode(f.read()).decode('utf-8'))
+            except Exception:
+                pass
+            try:
+                os.unlink(fp)
+            except Exception:
+                pass
+    return out
+
+
+def analyze_reference_video(url, niche):
+    """Download a viral reference video and build a 'winning profile' via Claude vision."""
+    data = tikwm_resolve(url)
+    if not data or not data.get('play'):
+        return None, "تعذّر قراءة الرابط (تأكد أنه رابط TikTok صحيح)"
+
+    meta = {
+        "title": data.get('title', ''),
+        "play_count": data.get('play_count'),
+        "digg_count": data.get('digg_count'),
+        "comment_count": data.get('comment_count'),
+        "share_count": data.get('share_count'),
+        "duration": data.get('duration'),
+        "author": (data.get('author') or {}).get('unique_id', ''),
+    }
+
+    video_path = _download_to_temp(data['play'])
+    if not video_path:
+        return None, "فشل تنزيل الفيديو المرجعي"
+
+    try:
+        duration = meta.get('duration') or int(get_video_duration(video_path))
+        frames = _extract_frames_b64(video_path, duration, n=4)
+        transcript = None
+        try:
+            transcript = transcribe_audio(video_path)
+        except Exception:
+            pass
+
+        content = []
+        for fb in frames:
+            content.append({"type": "image", "source": {
+                "type": "base64", "media_type": "image/jpeg", "data": fb}})
+        content.append({"type": "text", "text": f"""أنت خبير تحليل محتوى TikTok الفيروسي.
+
+هذا فيديو **رائج حقيقي** في مجال "{niche}". الصور أعلاه لقطات منه بالترتيب الزمني.
+بيانات الفيديو:
+- العنوان/الوصف: {meta['title']}
+- المشاهدات: {meta['play_count']} | إعجابات: {meta['digg_count']} | تعليقات: {meta['comment_count']} | مشاركات: {meta['share_count']}
+- المدة: {duration} ثانية
+- الكلام المنطوق: {transcript or 'غير متوفر'}
+
+حلّل **لماذا نجح** هذا الفيديو. اقرأ النصوص المكتوبة على الشاشة في اللقطات، ولاحظ الأسلوب والإيقاع.
+أعِد JSON عربياً فقط:
+{{
+  "why_viral": "أهم أسباب نجاحه (جملتان)",
+  "hook_style": "كيف يمسك المشاهد في أول ثانيتين",
+  "onscreen_texts": ["النصوص التي رأيتها مكتوبة على الفيديو كما هي"],
+  "text_style": "وصف أسلوب النصوص (الطول، النبرة، الموضع)",
+  "pacing": "وصف الإيقاع وتغيّر اللقطات",
+  "caption_formula": "صيغة الكابشن/العنوان الناجح",
+  "overlay_template": [
+    {{"purpose": "Hook", "position": "top", "start_pct": 0.0, "end_pct": 0.15, "style_note": "..."}},
+    {{"purpose": "...", "position": "...", "start_pct": 0.4, "end_pct": 0.6, "style_note": "..."}}
+  ],
+  "summary": "ملخص الوصفة الفائزة لتطبيقها على فيديوهات مشابهة"
+}}
+JSON فقط."""})
+
+        resp = call_claude(content, max_tokens=1500)
+        if not resp:
+            return None, "فشل تحليل Claude"
+        text = resp.strip()
+        if "```" in text:
+            text = text.split("```")[1]
+            if text.startswith("json"):
+                text = text[4:]
+        profile = json.loads(text)
+        profile['source_url'] = url
+        profile['source_meta'] = meta
+        profile['analyzed_at'] = datetime.now().isoformat()
+        return profile, None
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return None, f"خطأ: {str(e)[:200]}"
+    finally:
+        if os.path.exists(video_path):
+            try:
+                os.unlink(video_path)
+            except Exception:
+                pass
+
+
+def save_reference_profile(niche, profile):
+    try:
+        from trend_monitor import github_get_file, github_update_file
+        existing, sha = github_get_file('data/reference_profiles.json')
+        try:
+            profiles = json.loads(existing) if existing else {}
+        except Exception:
+            profiles = {}
+        profiles[niche] = profile
+        return github_update_file('data/reference_profiles.json',
+                                  json.dumps(profiles, ensure_ascii=False, indent=2),
+                                  sha, f"reference profile: {niche}")
+    except Exception as e:
+        print(f"save reference failed: {e}")
+        return False
+
+
+def load_reference_profile(niche):
+    content = github_get_file('data/reference_profiles.json')
+    if not content:
+        return None
+    try:
+        return json.loads(content).get(niche)
+    except Exception:
+        return None
+
+
+@app.route('/analyze-reference', methods=['POST'])
+def analyze_reference():
+    """Analyze a user-supplied viral video URL and store its winning profile."""
+    url = request.form.get('url', '').strip()
+    niche = request.form.get('niche', 'عام')
+    if not url:
+        return jsonify({"error": "أرسل رابط الفيديو"}), 400
+    profile, err = analyze_reference_video(url, niche)
+    if not profile:
+        return jsonify({"error": err or "فشل التحليل"}), 500
+    saved = save_reference_profile(niche, profile)
+    return jsonify({"saved": saved, "profile": profile})
+
+
 @app.route('/enhance', methods=['POST'])
 def enhance():
     """Return algorithm-based text suggestions as JSON. The video is now rendered
@@ -660,7 +854,8 @@ def enhance():
     except Exception:
         duration = 0
 
-    enhancements = generate_algorithm_enhancements(niche, title, transcript, duration) or {}
+    reference = load_reference_profile(niche)
+    enhancements = generate_algorithm_enhancements(niche, title, transcript, duration, reference) or {}
     overlays = _sanitize_overlays(enhancements.get("overlays"))
 
     # Fallback: a sensible default template if Claude returned nothing usable
@@ -757,7 +952,7 @@ def health():
     trend_data = load_trend_data("عام")
     return jsonify({
         "status": "ok",
-        "version": "dyn-overlays-1",
+        "version": "reference-1",
         "ffmpeg": _FFMPEG_BIN,
         "apify_configured": bool((os.environ.get('APIFY_TOKEN') or '').strip()),
         "github_configured": bool((os.environ.get('GITHUB_TOKEN') or '').strip()),
