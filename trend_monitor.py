@@ -143,14 +143,19 @@ def _parse_time(item):
 
 
 def collect_viral_videos(niche):
-    """Search the niche's hashtags, return recent high-view videos."""
+    """Search the niche's hashtag(s) and return the highest-view videos.
+
+    The hashtag scraper returns the top videos for the tag (not strictly the
+    last 24h), so we rank by views and keep those above MIN_VIEWS. We still flag
+    how many are genuinely recent for context."""
     cutoff = datetime.now(timezone.utc) - timedelta(hours=RECENT_HOURS)
     seen_ids = set()
-    recent_viral = []
     all_videos = []
+    recent_count = 0
 
-    for tag in NICHE_HASHTAGS.get(niche, NICHE_HASHTAGS["عام"]):
-        items = apify_search_hashtag(tag)
+    tags = NICHE_HASHTAGS.get(niche, NICHE_HASHTAGS["عام"])
+    for tag in tags[:1]:  # one hashtag per niche keeps it fast + cheap
+        items = apify_search_hashtag(tag, limit=25)
         for it in items:
             vid = it.get('id') or it.get('webVideoUrl')
             if not vid or vid in seen_ids:
@@ -158,8 +163,9 @@ def collect_viral_videos(niche):
             seen_ids.add(vid)
             views = it.get('playCount') or 0
             ctime = _parse_time(it)
-            rec = {
-                "id": vid,
+            if ctime and ctime >= cutoff:
+                recent_count += 1
+            all_videos.append({
                 "caption": (it.get('text') or '')[:200],
                 "views": views,
                 "likes": it.get('diggCount') or 0,
@@ -168,20 +174,14 @@ def collect_viral_videos(niche):
                 "duration": (it.get('videoMeta') or {}).get('duration', 0),
                 "author": (it.get('authorMeta') or {}).get('name', ''),
                 "hashtags": [h.get('name') for h in (it.get('hashtags') or []) if h.get('name')],
-                "created": ctime.isoformat() if ctime else '',
-            }
-            all_videos.append(rec)
-            if ctime and ctime >= cutoff and views >= MIN_VIEWS:
-                recent_viral.append(rec)
-        time.sleep(1)
+            })
 
-    # Prefer recent+viral; if too few, fall back to top by views overall
-    if len(recent_viral) >= 3:
-        chosen = sorted(recent_viral, key=lambda x: x["views"], reverse=True)[:15]
-        basis = f"آخر {RECENT_HOURS} ساعة بأكثر من {MIN_VIEWS} مشاهدة"
+    viral = [v for v in all_videos if v["views"] >= MIN_VIEWS]
+    chosen = sorted(viral or all_videos, key=lambda x: x["views"], reverse=True)[:12]
+    if recent_count >= 3:
+        basis = f"فيديوهات حديثة (آخر {RECENT_HOURS} ساعة) عالية المشاهدة"
     else:
-        chosen = sorted(all_videos, key=lambda x: x["views"], reverse=True)[:15]
-        basis = "الأعلى مشاهدة (لم تتوفر فيديوهات كافية ضمن النافذة الزمنية)"
+        basis = "أعلى الفيديوهات مشاهدة في المجال حالياً"
     return chosen, basis
 
 
@@ -248,7 +248,12 @@ def run_trend_analysis():
         print("APIFY_TOKEN missing — aborting trend analysis.")
         return
 
-    trends_data = {}
+    # Start from existing data so partial progress accumulates across restarts
+    existing, _ = github_get_file('data/trends.json')
+    try:
+        trends_data = json.loads(existing) if existing else {}
+    except Exception:
+        trends_data = {}
     report = {"generated_at": datetime.now().isoformat(), "niches": {}}
 
     for niche in NICHES:
@@ -272,7 +277,6 @@ def run_trend_analysis():
         patterns['basis'] = basis
         trends_data[niche] = patterns
 
-        # Build report entry
         top_authors = {}
         for v in videos:
             a = v.get('author') or ''
@@ -288,12 +292,12 @@ def run_trend_analysis():
         }
         print(f"  ✅ analyzed {len(videos)} videos")
 
-    if trends_data:
+        # Incremental save — keep progress even if the container restarts
         content = json.dumps(trends_data, ensure_ascii=False, indent=2)
         _, sha = github_get_file('data/trends.json')
         ok = github_update_file('data/trends.json', content, sha,
-                                f"Update trends: {datetime.now().strftime('%Y-%m-%d %H:%M')}")
-        print(f"\n{'✅' if ok else '❌'} trends.json saved")
+                                f"Update trends ({niche}): {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+        print(f"  {'✅ saved' if ok else '❌ save failed'}")
 
     if report["niches"]:
         rc = json.dumps(report, ensure_ascii=False, indent=2)
