@@ -737,6 +737,47 @@ def health():
     })
 
 
+@app.route('/diag-apify', methods=['GET'])
+def diag_apify():
+    """Run one Apify hashtag search and report raw result for debugging."""
+    tag = request.args.get('tag', 'fyp')
+    token = (os.environ.get('APIFY_TOKEN') or '').strip()
+    actor = os.environ.get('APIFY_ACTOR', 'clockworks~tiktok-scraper')
+    if not token:
+        return jsonify({"error": "APIFY_TOKEN not set"}), 400
+    url = f"https://api.apify.com/v2/acts/{actor}/run-sync-get-dataset-items?token={token}"
+    payload = {
+        "hashtags": [tag],
+        "resultsPerPage": 5,
+        "shouldDownloadVideos": False,
+        "shouldDownloadCovers": False,
+        "shouldDownloadSubtitles": False,
+    }
+    try:
+        r = requests.post(url, json=payload, timeout=240)
+        info = {"actor": actor, "http_status": r.status_code}
+        try:
+            data = r.json()
+        except Exception:
+            return jsonify({**info, "raw_text": r.text[:500]})
+        if isinstance(data, list):
+            info["item_count"] = len(data)
+            if data:
+                first = data[0]
+                info["first_item_keys"] = sorted(list(first.keys()))[:40]
+                info["sample"] = {
+                    "playCount": first.get("playCount"),
+                    "createTimeISO": first.get("createTimeISO"),
+                    "text": (first.get("text") or "")[:80],
+                    "hashtags_count": len(first.get("hashtags") or []),
+                }
+        else:
+            info["non_list_response"] = str(data)[:500]
+        return jsonify(info)
+    except Exception as e:
+        return jsonify({"error": f"{type(e).__name__}: {str(e)[:300]}"}), 500
+
+
 _trend_run_state = {"running": False, "last": ""}
 
 
