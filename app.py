@@ -779,6 +779,48 @@ def diag_apify():
         return jsonify({"error": f"{type(e).__name__}: {str(e)[:300]}"}), 500
 
 
+@app.route('/run-one', methods=['GET'])
+def run_one():
+    """Run trend analysis for ONE niche synchronously and report every step."""
+    niche = request.args.get('niche', 'تصاميم منزلية وديكور')
+    steps = {"niche": niche}
+    try:
+        import trend_monitor as tm
+        videos, basis = tm.collect_viral_videos(niche)
+        steps["videos_collected"] = len(videos)
+        steps["basis"] = basis
+        steps["top_views"] = [v["views"] for v in videos[:3]]
+        if not videos:
+            return jsonify({**steps, "stopped": "no videos"})
+
+        patterns = tm.analyze_patterns(niche, videos, basis)
+        steps["patterns_ok"] = bool(patterns)
+        if not patterns:
+            return jsonify({**steps, "stopped": "no patterns from Claude"})
+
+        patterns['last_updated'] = datetime.now().isoformat()
+        patterns['videos_analyzed'] = len(videos)
+        patterns['basis'] = basis
+
+        existing, _ = tm.github_get_file('data/trends.json')
+        try:
+            trends = json.loads(existing) if existing else {}
+        except Exception:
+            trends = {}
+        trends[niche] = patterns
+        content = json.dumps(trends, ensure_ascii=False, indent=2)
+        _, sha = tm.github_get_file('data/trends.json')
+        ok = tm.github_update_file('data/trends.json', content, sha, f"trends {niche}")
+        steps["saved"] = ok
+        steps["hook_examples"] = patterns.get("hook_text_examples")
+        steps["trending_hashtags"] = patterns.get("trending_hashtags")
+        return jsonify(steps)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({**steps, "error": f"{type(e).__name__}: {str(e)[:300]}"}), 500
+
+
 _trend_run_state = {"running": False, "last": "", "error": "", "github_write": ""}
 
 
